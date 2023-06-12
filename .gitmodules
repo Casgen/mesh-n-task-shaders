@@ -1,0 +1,3 @@
+[submodule "VulkanCore"]
+	path = VulkanCore
+	url = https://github.com/Casgen/VulkanCore.git
