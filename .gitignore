@@ -1,2 +1,4 @@
-/Makefile
-/compile_commands.json
+Makefile
+compile_commands.json
+.cache
+

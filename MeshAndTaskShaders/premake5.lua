@@ -5,24 +5,26 @@ project "MeshAndTaskShaders"
   language "C++"
   cppdialect "C++20"
 
-  location "build"
+
   links {"VulkanCore", "GLM", "GLFW"}
 
+  location "build"
   targetdir "bin/%{cfg.buildcfg}"
   objdir "obj/%{cfg.buildcfg}"
 
   includedirs {
-    "../VulkanCore/Src",
+    "../VulkanCore/Src/",
     "../VulkanCore/Vendor/glfw/include/",
     "../VulkanCore/Vendor/glm/",
     "../VulkanCore/Vendor/stb_image",
     "../VulkanCore/Vendor/vma/",
+    "/home/oem/Development/VulkanSDK/1.3.250.0/x86_64/include/"
   }
 
   files {
-    "%{prj.name}/Src/**.cpp",
-    "%{prj.name}/Src/**.h",
-    "%{prj.name}/Src/**hpp"
+    "Src/**.cpp",
+    "Src/**.h",
+    "Src/**.hpp"
   }
 
   filter "configurations:Debug"
@@ -37,4 +39,3 @@ project "MeshAndTaskShaders"
     defines {"_X11"}
 
     -- On linux, make sure that you have installed libvulkan-dev through your package manager!
-    links { "dl", "pthread", os.findlib("libvulkan-dev") }
