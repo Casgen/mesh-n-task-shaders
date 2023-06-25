@@ -5,13 +5,11 @@
 
 int main()
 {
-    Application app = Application(1280, 720, "Hey!");
+    // Application app = Application(1280, 720, "Hey!");
+    // return 0;
+    //
 
-    vk::ApplicationInfo appInfo = {"Some name", 0, "Engine name", 0, VK_API_VERSION_1_3};
-
-    vk::InstanceCreateInfo InstanceCreateInfo({}, &appInfo);
-
-    vk::createInstance(InstanceCreateInfo);
+    std::cout << "Hello, World" << std::endl;
 
     return 0;
     
