@@ -1,11 +1,11 @@
-    ---@diagnostic disable: undefined-global
-    project "MeshAndTaskShaders"
+---@diagnostic disable: undefined-global
+project "MeshAndTaskShaders"
     kind "ConsoleApp"
 
     language "C++"
     cppdialect "C++20"
 
-    architecture "x64"
+    architecture "x86_64"
 
     links {"VulkanCore", "GLM", "GLFW"}
 
@@ -15,11 +15,11 @@
     objdir("../obj/" .. output_dir .. "/%{prj.name}")
 
     includedirs {
-        "../VulkanCore/Src",
-        "../VulkanCore/Vendor/glfw/include",
-        "../VulkanCore/Vendor/glm",
-        "../VulkanCore/Vendor/stb_image",
-        "../VulkanCore/Vendor/vma",
+        "../VulkanCore/Src/",
+        "../VulkanCore/Vendor/glfw/include/",
+        "../VulkanCore/Vendor/glm/",
+        "../VulkanCore/Vendor/stb_image/",
+        "../VulkanCore/Vendor/vma/",
     }
 
     files {
@@ -38,6 +38,9 @@
         optimize "on"
 
     filter { "system:linux" }
+
+        -- In case of using with VulkanSDK make sure that you have VULKAN_SDK environment variable set! (for ex. /home/username/Development/VulkanSDK/1.3.250.0/x86_64)
+        -- But on linux, if Vulkan is installed correctly, VulkanSDK is not needed.
         includedirs {
             "$(VULKAN_SDK)/include/"
         }
@@ -65,6 +68,5 @@
         links {
             "$(VULKAN_SDK)/Lib/vulkan-1.lib"
         }
-        
 
     -- On linux, make sure that you have installed libvulkan-dev through your package manager!

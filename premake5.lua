@@ -7,4 +7,3 @@ workspace("MeshAndTaskShaders")
     include("VulkanCore")
     include("MeshAndTaskShaders")
 
-
