@@ -14,6 +14,8 @@ class Application
     void Run();
 
   private:
+    vk::DebugUtilsMessengerEXT m_DebugMessenger;
+
     vk::Instance m_Instance;
     std::unique_ptr<VkCore::Window> m_Window;
 };
