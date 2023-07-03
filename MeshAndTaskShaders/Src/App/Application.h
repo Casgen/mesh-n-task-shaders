@@ -12,6 +12,7 @@ class Application
     ~Application();
 
     void Run();
+    void Loop();
 
   private:
     vk::DebugUtilsMessengerEXT m_DebugMessenger;

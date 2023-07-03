@@ -6,5 +6,6 @@
 int main()
 {
     Application app = Application(1280, 720, "Hey!");
+    app.Run();
     return 0;
 }
