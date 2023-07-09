@@ -2,8 +2,12 @@
 
 #include <cstdint>
 #include <memory>
+#include <set>
 #include <string>
+
 #include "Platform/Window.h"
+#include "Vk/Model/PhysicalDevice.h"
+#include "vulkan/vulkan_core.h"
 
 class Application
 {
@@ -15,8 +19,11 @@ class Application
     void Loop();
 
   private:
-    vk::DebugUtilsMessengerEXT m_DebugMessenger;
+    std::set<std::string> m_DeviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
+    vk::DebugUtilsMessengerEXT m_DebugMessenger;
     vk::Instance m_Instance;
+
+    VkCore::PhysicalDevice m_PhysicalDevice;
     std::unique_ptr<VkCore::Window> m_Window;
 };
