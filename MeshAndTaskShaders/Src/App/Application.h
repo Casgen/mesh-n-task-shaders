@@ -5,9 +5,8 @@
 #include <set>
 #include <string>
 
-#include "Platform/Window.h"
 #include "Vk/Model/Device.h"
-#include "Vk/Model/PhysicalDevice.h"
+#include "Platform/Window.h"
 #include "vulkan/vulkan_core.h"
 
 class Application
@@ -16,6 +15,7 @@ class Application
     Application(const uint32_t width, const uint32_t height, const std::string& title);
     ~Application();
 
+    void InitVulkan();
     void Run();
     void Loop();
 
@@ -24,9 +24,12 @@ class Application
 
     vk::DebugUtilsMessengerEXT m_DebugMessenger;
     vk::Instance m_Instance;
+    vk::RenderPass m_RenderPass;
 
     VkCore::PhysicalDevice m_PhysicalDevice;
     VkCore::Device* m_Device;
 
     std::unique_ptr<VkCore::Window> m_Window;
+    uint32_t m_WinWidth, m_WinHeight;
+    std::string m_Title;
 };
