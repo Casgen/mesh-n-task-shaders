@@ -7,6 +7,7 @@
 
 #include "Vk/Model/Device.h"
 #include "Platform/Window.h"
+#include "Vk/Model/RenderPass.h"
 #include "vulkan/vulkan_core.h"
 
 class Application
@@ -24,7 +25,7 @@ class Application
 
     vk::DebugUtilsMessengerEXT m_DebugMessenger;
     vk::Instance m_Instance;
-    vk::RenderPass m_RenderPass;
+    VkCore::RenderPass m_RenderPass;
 
     VkCore::PhysicalDevice m_PhysicalDevice;
     VkCore::Device* m_Device;

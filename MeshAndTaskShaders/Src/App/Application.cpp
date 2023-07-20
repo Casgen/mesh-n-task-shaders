@@ -1,7 +1,9 @@
 #include <memory>
 
 #include "Application.h"
+#include "GLFW/glfw3.h"
 #include "Log/Log.h"
+#include "Vk/Model/SwapchainRenderPass.h"
 #include "Vk/Utils.h"
 
 Application::Application(const uint32_t width, const uint32_t height, const std::string& title)
@@ -36,7 +38,8 @@ void Application::InitVulkan()
     m_Device = new VkCore::Device(m_PhysicalDevice);
 
     m_Device->InitSwapChain(m_PhysicalDevice, m_Window->GetSurface(), m_WinWidth, m_WinHeight);
-    m_RenderPass = m_Device->CreateSwapchainRenderPass();
+
+    m_RenderPass = VkCore::SwapchainRenderPass(*m_Device);
 }
 
 Application::~Application()
@@ -53,6 +56,7 @@ void Application::Loop()
 {
     while (!m_Window->ShouldClose())
     {
+        glfwPollEvents();
     }
 
     m_Instance.destroy();
