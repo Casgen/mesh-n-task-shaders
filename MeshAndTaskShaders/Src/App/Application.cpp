@@ -61,3 +61,7 @@ void Application::Loop()
 
     m_Instance.destroy();
 }
+
+void Application::Shutdown()
+{
+}

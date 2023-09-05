@@ -5,7 +5,7 @@
 #include <set>
 #include <string>
 
-#include "Vk/Model/Device.h"
+#include "Vk/Model/Devices/Device.h"
 #include "Platform/Window.h"
 #include "Vk/Model/RenderPass.h"
 #include "vulkan/vulkan_core.h"
@@ -19,6 +19,7 @@ class Application
     void InitVulkan();
     void Run();
     void Loop();
+    void Shutdown();
 
   private:
     std::set<std::string> m_DeviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
