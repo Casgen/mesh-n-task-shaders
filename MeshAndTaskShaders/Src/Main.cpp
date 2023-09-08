@@ -1,11 +1,11 @@
 
-#include "App/Application.h"
+#include "App/BaseApplication.h"
 #include <iostream>
 #include <ostream>
 
 int main()
 {
-    Application app = Application(1280, 720, "Hey!");
+    VkCore::BaseApplication app = VkCore::BaseApplication(1280, 720, "Hey!");
     app.Run();
     return 0;
 }
