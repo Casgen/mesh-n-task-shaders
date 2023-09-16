@@ -3,7 +3,7 @@ project "MeshAndTaskShaders"
     kind "ConsoleApp"
 
     language "C++"
-    cppdialect "C++20"
+    cppdialect "C++17"
 
     architecture "x86_64"
 
@@ -50,7 +50,7 @@ project "MeshAndTaskShaders"
         }
 
         -- On linux, make sure that you have installed libvulkan-dev through your package manager!
-        links { "vulkan",  "pthread" }
+        links { "vulkan",  "pthread" , "shaderc_combined"}
 
 
         defines {
@@ -68,6 +68,11 @@ project "MeshAndTaskShaders"
             "$(VULKAN_SDK)/Lib"
         }
 
-        links { "vulkan-1" }
+        links { "vulkan-1", "shaderc_combined", "pthread" }
+
+        defines {
+            "_WIN",
+            "_GLFW_VULKAN_STATIC"
+        }
 
     -- On linux, make sure that you have installed libvulkan-dev through your package manager!
