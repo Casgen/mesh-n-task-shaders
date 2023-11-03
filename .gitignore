@@ -3,4 +3,7 @@ compile_commands.json
 .cache
 bin/
 obj/
-
+.clion/
+**/CMakeLists.txt
+**/*.cmake
+.cap_settings
