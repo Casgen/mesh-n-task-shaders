@@ -4,6 +4,7 @@
 #include "vulkan/vulkan_core.h"
 #include <cstdint>
 
+
 class MeshApplication : public VkCore::BaseApplication
 {
   public:
@@ -12,4 +13,6 @@ class MeshApplication : public VkCore::BaseApplication
     {
             m_DeviceExtensions.emplace_back(VK_EXT_mesh_shader);
     }
+
+    virtual void PreInitVulkan() override;
 };

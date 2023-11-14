@@ -7,7 +7,7 @@ project "MeshAndTaskShaders"
 
     architecture "x86_64"
 
-    links {"VulkanCore", "GLM", "GLFW"}
+    links {"VulkanCore", "GLM", "GLFW", "Assimp"}
 
     local output_dir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
 
