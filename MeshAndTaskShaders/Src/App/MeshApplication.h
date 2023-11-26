@@ -11,7 +11,7 @@ class MeshApplication : public VkCore::BaseApplication
     MeshApplication(const uint32_t winWidth, const uint32_t winHeight)
         : BaseApplication(winWidth, winHeight, "Mesh and Task Shading")
     {
-            m_DeviceExtensions.emplace_back(VK_EXT_mesh_shader);
+            AddDeviceExtension(VK_EXT_MESH_SHADER_EXTENSION_NAME);
     }
 
     virtual void PreInitVulkan() override;

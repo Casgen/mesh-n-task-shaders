@@ -7,7 +7,7 @@ project "MeshAndTaskShaders"
 
     architecture "x86_64"
 
-    links {"VulkanCore", "GLM", "GLFW", "Assimp"}
+    links {"VulkanCore", "GLM", "GLFW", "assimp"}
 
     local output_dir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
 
@@ -61,14 +61,16 @@ project "MeshAndTaskShaders"
     filter { "system:windows" }
 
         includedirs {
-            "$(VULKAN_SDK)/Include"
+            "$(VULKAN_SDK)/Include",
+            "$(VK_SDK_PATH)/Include"
         }
 
         libdirs {
-            "$(VULKAN_SDK)/Lib"
+            "$(VULKAN_SDK)/Lib",
+            "$(VK_SDK_PATH)/Lib"
         }
 
-        links { "vulkan-1", "shaderc_combined", "pthread" }
+        links { "vulkan-1", "shaderc_combined" }
 
         defines {
             "_WIN",
