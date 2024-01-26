@@ -7,3 +7,4 @@ obj/
 **/CMakeLists.txt
 **/*.cmake
 .cap_settings
+Log.txt

@@ -16,10 +16,10 @@ project "MeshAndTaskShaders"
 
     includedirs {
         "../VulkanCore/Src",
-        "../VulkanCore/Vendor/glfw/include",
-        "../VulkanCore/Vendor/glm",
-        "../VulkanCore/Vendor/stb_image",
-        "../VulkanCore/Vendor/vma",
+        "../VulkanCore/Vendor/glfw/include/",
+        "../VulkanCore/Vendor/glm/",
+        "../VulkanCore/Vendor/stb/",
+        "../VulkanCore/Vendor/vma/",
     }
 
     files {
