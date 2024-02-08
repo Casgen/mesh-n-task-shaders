@@ -13,6 +13,7 @@ class MeshApplication : public VkCore::BaseApplication
         : BaseApplication(winWidth, winHeight, "Mesh and Task Shading")
     {
         AddDeviceExtension(VK_NV_MESH_SHADER_EXTENSION_NAME);
+        AddDeviceExtension(VK_EXT_MESH_SHADER_EXTENSION_NAME);
     }
 
     void PreInitVulkan() override{};

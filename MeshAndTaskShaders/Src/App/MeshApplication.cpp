@@ -53,7 +53,7 @@ void MeshApplication::PostInitVulkan()
     m_Pipeline = pipelineBuilder.BindShaderModules(shaders)
                      .BindRenderPass(m_RenderPass.GetVkRenderPass())
                      .AddViewport(glm::uvec4(0, 0, m_WinWidth, m_WinHeight))
-                     .FrontFaceDirection(vk::FrontFace::eCounterClockwise)
+                     .FrontFaceDirection(vk::FrontFace::eClockwise)
                      .AddDisabledBlendAttachment()
                      .AddDescriptorLayout(m_DescriptorSetLayout)
                      .SetPrimitiveAssembly(vk::PrimitiveTopology::eTriangleList)
@@ -233,13 +233,13 @@ bool MeshApplication::OnMouseMoved(MouseMovedEvent& event)
 {
     // ImGui_ImplGlfw_CursorPosCallback(m_AppWindow->GetGLFWWindow(), event.GetPos().x, event.GetPos().y);
 
-    const glm::ivec2 diff = m_MouseState.m_LastPosition - event.GetPos();
     // LOGF(Application, Info, "Mouse last position X: %d, Y: %d", m_MouseState.m_LastPosition.x,
     //      m_MouseState.m_LastPosition.y)
-    // LOGF(Application, Info, "Mouse moved with diff X: %d, Y: %d", diff.x, diff.y)
 
     if (m_MouseState.m_IsRMBPressed)
     {
+        const glm::ivec2 diff = m_MouseState.m_LastPosition - event.GetPos();
+        LOGF(Application, Info, "Mouse moved with diff X: %d, Y: %d", diff.x, diff.y)
         m_Camera.Yaw(-diff.x);
         m_Camera.Pitch(-diff.y);
     }
