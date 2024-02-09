@@ -11,6 +11,26 @@ layout (binding = 0) uniform MatrixBuffer {
     mat4 proj;
 } matBuffer;
 
+struct s_vertex {
+    vec3 position;
+};
+
+layout (binding = 1) buffer VertexBuffer {
+    s_vertex vertices[];
+} vertexBuffer;
+
+
+struct s_meshlet {
+    uint vertices[4];
+    uint indices[6];
+    uint vertexCount;
+    uint indexCount;
+};
+
+layout (std430, binding = 2) buffer MeshletBuffer {
+     s_meshlet meshlets[];
+} meshletBuffer;
+
 layout (location = 0) out PerVertexData
 {
   vec4 color;

@@ -7,11 +7,14 @@
 #include "Log/Log.h"
 #include "Vk/Swapchain.h"
 #include "Vk/Utils.h"
+#include "glm/ext/vector_float3.hpp"
 #include "glm/matrix.hpp"
 #include "vulkan/vulkan.hpp"
 #include "vulkan/vulkan_core.h"
 #include "Mesh/MeshletGeneration.h"
 #include "Mesh/Meshlet.h"
+#include "vulkan/vulkan_enums.hpp"
+#include <cstdint>
 
 void MeshApplication::PostInitVulkan()
 {
@@ -23,10 +26,16 @@ void MeshApplication::PostInitVulkan()
 
     m_Camera = Camera({0.f, 0.f, -1.f}, {0.f, 0.f, 0.f}, (float)m_WinWidth / m_WinHeight);
 
-    std::vector<Meshlet> meshlets = MeshletGeneration::MeshletizeUnoptimized(64, 378, m_CubeIndices, m_CubeVertices);
+    std::vector<Meshlet> meshlets = MeshletGeneration::MeshletizeUnoptimized(4, 6, m_CubeIndices, m_CubeVertices);
 
     const std::vector<VkCore::ShaderData> shaders =
         VkCore::ShaderLoader::LoadMeshShaders("MeshAndTaskShaders/Res/Shaders/mesh_shading");
+
+    m_VertexBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer);
+    m_VertexBuffer.InitializeOnGpu(m_CubeVertices.data(), m_CubeVertices.size() * sizeof(glm::vec3));
+
+    m_MeshletBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer);
+    m_MeshletBuffer.InitializeOnGpu(meshlets.data(), meshlets.size() * sizeof(Meshlet));
 
     // Create Buffers
     for (int i = 0; i < m_Device.GetSwapchain()->GetImageCount(); i++)
@@ -42,9 +51,11 @@ void MeshApplication::PostInitVulkan()
 
     vk::DescriptorSet tempSet;
 
-    for (const auto& buffer : m_MatBuffers)
+    for (uint32_t i = 0; i < m_Device.GetSwapchain()->GetImageCount(); i++)
     {
-        descriptorBuilder.BindBuffer(0, buffer, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eMeshNV);
+        descriptorBuilder.BindBuffer(0, m_MatBuffers[i], vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eMeshNV);
+        descriptorBuilder.BindBuffer(1, m_VertexBuffer, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eMeshNV);
+        descriptorBuilder.BindBuffer(2, m_MeshletBuffer, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eMeshNV);
         descriptorBuilder.Build(tempSet, m_DescriptorSetLayout);
         descriptorBuilder.Clear();
 

@@ -46,6 +46,9 @@ class MeshApplication : public VkCore::BaseApplication
     std::vector<vk::DescriptorSet> m_DescriptorSets;
     vk::DescriptorSetLayout m_DescriptorSetLayout;
 
+    VkCore::Buffer m_MeshletBuffer;
+    VkCore::Buffer m_VertexBuffer;
+
     PFN_vkCmdDrawMeshTasksNV vkCmdDrawMeshTasksNv;
 
     std::vector<glm::vec3> m_CubeVertices = {{-1, -1, -1}, {1, -1, -1}, {1, 1, -1}, {-1, 1, -1},
