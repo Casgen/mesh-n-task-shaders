@@ -27,7 +27,7 @@ void main()
     uint thread_id = gl_LocalInvocationID.x;
 
     vec4 pos = vec4(vertices[thread_id] * scale, 1.0);
-    pos.y = -pos.y; pos.z = (pos.z + pos.w) / 2.0;
+    // pos.y = -pos.y; pos.z = (pos.z + pos.w) / 2.0;
 
     pos = matBuffer.proj * matBuffer.view * pos;
 

@@ -10,6 +10,8 @@
 #include "glm/matrix.hpp"
 #include "vulkan/vulkan.hpp"
 #include "vulkan/vulkan_core.h"
+#include "Mesh/MeshletGeneration.h"
+#include "Mesh/Meshlet.h"
 
 void MeshApplication::PostInitVulkan()
 {
@@ -20,6 +22,8 @@ void MeshApplication::PostInitVulkan()
     // texture.InitializeOnTheGpu();
 
     m_Camera = Camera({0.f, 0.f, -1.f}, {0.f, 0.f, 0.f}, (float)m_WinWidth / m_WinHeight);
+
+    std::vector<Meshlet> meshlets = MeshletGeneration::MeshletizeUnoptimized(64, 378, m_CubeIndices, m_CubeVertices);
 
     const std::vector<VkCore::ShaderData> shaders =
         VkCore::ShaderLoader::LoadMeshShaders("MeshAndTaskShaders/Res/Shaders/mesh_shading");
@@ -44,7 +48,7 @@ void MeshApplication::PostInitVulkan()
         descriptorBuilder.Build(tempSet, m_DescriptorSetLayout);
         descriptorBuilder.Clear();
 
-        m_DescriptorSets.emplace_back(tempSet);
+       m_DescriptorSets.emplace_back(tempSet);
     }
 
     // Pipeline
@@ -53,7 +57,7 @@ void MeshApplication::PostInitVulkan()
     m_Pipeline = pipelineBuilder.BindShaderModules(shaders)
                      .BindRenderPass(m_RenderPass.GetVkRenderPass())
                      .AddViewport(glm::uvec4(0, 0, m_WinWidth, m_WinHeight))
-                     .FrontFaceDirection(vk::FrontFace::eClockwise)
+                     .FrontFaceDirection(vk::FrontFace::eCounterClockwise)
                      .AddDisabledBlendAttachment()
                      .AddDescriptorLayout(m_DescriptorSetLayout)
                      .SetPrimitiveAssembly(vk::PrimitiveTopology::eTriangleList)
@@ -239,14 +243,11 @@ bool MeshApplication::OnMouseMoved(MouseMovedEvent& event)
     if (m_MouseState.m_IsRMBPressed)
     {
         const glm::ivec2 diff = m_MouseState.m_LastPosition - event.GetPos();
-        LOGF(Application, Info, "Mouse moved with diff X: %d, Y: %d", diff.x, diff.y)
         m_Camera.Yaw(-diff.x);
         m_Camera.Pitch(-diff.y);
     }
 
     m_MouseState.UpdatePosition(event.GetPos());
-
-    LOGF(Application, Info, "Mouse moved with position X: %d, Y: %d", event.GetPos().x, event.GetPos().y)
 
     return true;
 }

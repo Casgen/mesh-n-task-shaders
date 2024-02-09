@@ -48,5 +48,12 @@ class MeshApplication : public VkCore::BaseApplication
 
     PFN_vkCmdDrawMeshTasksNV vkCmdDrawMeshTasksNv;
 
+    std::vector<glm::vec3> m_CubeVertices = {{-1, -1, -1}, {1, -1, -1}, {1, 1, -1}, {-1, 1, -1},
+                                             {-1, -1, 1},  {1, -1, 1},  {1, 1, 1},  {-1, 1, 1}};
+
+    std::vector<uint32_t> m_CubeIndices = {
+        0, 1, 2, 2, 3, 0, 4, 5, 6, 6, 7, 4, 1, 2, 5, 1, 6, 2, 3, 0, 4, 3, 7, 4, 2, 3, 7, 2, 6, 7, 0, 1, 5, 0, 4, 5,
+    };
+
     Camera m_Camera;
 };
