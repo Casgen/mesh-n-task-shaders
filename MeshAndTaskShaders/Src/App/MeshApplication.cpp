@@ -24,9 +24,9 @@ void MeshApplication::PostInitVulkan()
     // VkCore::Texture2D texture("MeshAndTaskShaders/Artwork/modern-brick1_bl/modern-brick1_albedo.png");
     // texture.InitializeOnTheGpu();
 
-    m_Camera = Camera({0.f, 0.f, -1.f}, {0.f, 0.f, 0.f}, (float)m_WinWidth / m_WinHeight);
+    m_Camera = Camera({0.f, 0.f, -3.f}, {0.f, 0.f, 0.f}, (float)m_WinWidth / m_WinHeight);
 
-    std::vector<Meshlet> meshlets = MeshletGeneration::MeshletizeUnoptimized(4, 6, m_CubeIndices, m_CubeVertices);
+    std::vector<Meshlet> meshlets = MeshletGeneration::MeshletizeUnoptimized(4, 6, m_CubeIndices);
 
     const std::vector<VkCore::ShaderData> shaders =
         VkCore::ShaderLoader::LoadMeshShaders("MeshAndTaskShaders/Res/Shaders/mesh_shading");
@@ -68,7 +68,7 @@ void MeshApplication::PostInitVulkan()
     m_Pipeline = pipelineBuilder.BindShaderModules(shaders)
                      .BindRenderPass(m_RenderPass.GetVkRenderPass())
                      .AddViewport(glm::uvec4(0, 0, m_WinWidth, m_WinHeight))
-                     .FrontFaceDirection(vk::FrontFace::eCounterClockwise)
+                     .FrontFaceDirection(vk::FrontFace::eClockwise)
                      .AddDisabledBlendAttachment()
                      .AddDescriptorLayout(m_DescriptorSetLayout)
                      .SetPrimitiveAssembly(vk::PrimitiveTopology::eTriangleList)
@@ -208,7 +208,7 @@ void MeshApplication::RecordCommandBuffer(const vk::CommandBuffer& commandBuffer
         commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_PipelineLayout, 0, 1,
                                          &m_DescriptorSets[imageIndex], 0, nullptr);
 
-        vkCmdDrawMeshTasksNv(&*commandBuffer, 8, 0);
+        vkCmdDrawMeshTasksNv(&*commandBuffer, 6, 0);
 
         commandBuffer.endRenderPass();
     }

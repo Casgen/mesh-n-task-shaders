@@ -14,6 +14,7 @@ class MeshApplication : public VkCore::BaseApplication
     {
         AddDeviceExtension(VK_NV_MESH_SHADER_EXTENSION_NAME);
         AddDeviceExtension(VK_EXT_MESH_SHADER_EXTENSION_NAME);
+        AddDeviceExtension(VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME);
     }
 
     void PreInitVulkan() override{};
@@ -41,7 +42,6 @@ class MeshApplication : public VkCore::BaseApplication
     std::vector<vk::Semaphore> m_RenderFinishedSemaphores;
 
     std::vector<vk::Fence> m_InFlightFences;
-
     std::vector<VkCore::Buffer> m_MatBuffers;
     std::vector<vk::DescriptorSet> m_DescriptorSets;
     vk::DescriptorSetLayout m_DescriptorSetLayout;
@@ -51,8 +51,8 @@ class MeshApplication : public VkCore::BaseApplication
 
     PFN_vkCmdDrawMeshTasksNV vkCmdDrawMeshTasksNv;
 
-    std::vector<glm::vec3> m_CubeVertices = {{-1, -1, -1}, {1, -1, -1}, {1, 1, -1}, {-1, 1, -1},
-                                             {-1, -1, 1},  {1, -1, 1},  {1, 1, 1},  {-1, 1, 1}};
+    std::vector<glm::vec4> m_CubeVertices = {{-1, -1, -1, 1}, {1, -1, -1, 1}, {1, 1, -1, 1}, {-1, 1, -1, 1},
+                                             {-1, -1, 1, 1},  {1, -1, 1, 1},  {1, 1, 1, 1},  {-1, 1, 1, 1}};
 
     std::vector<uint32_t> m_CubeIndices = {
         0, 1, 2, 2, 3, 0, 4, 5, 6, 6, 7, 4, 1, 2, 5, 1, 6, 2, 3, 0, 4, 3, 7, 4, 2, 3, 7, 2, 6, 7, 0, 1, 5, 0, 4, 5,
