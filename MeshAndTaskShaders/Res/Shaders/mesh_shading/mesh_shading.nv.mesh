@@ -3,8 +3,9 @@
 #extension GL_NV_mesh_shader : require
 #extension GL_EXT_debug_printf : enable
 
-layout(local_size_x = 1) in;
-layout(triangles, max_vertices = 64, max_primitives = 126) out;
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(triangles) out;
+layout(max_vertices=4, max_primitives=2) out;
 
 layout (binding = 0) uniform MatrixBuffer {
     mat4 model;
@@ -16,14 +17,14 @@ struct s_vertex {
     vec4 position;
 };
 
-layout (binding = 1) buffer VertexBuffer {
+layout (std430, binding = 1) buffer VertexBuffer {
     s_vertex vertices[];
 } vertexBuffer;
 
 
 struct s_meshlet {
-    uint vertices[4];
     uint indices[6];
+    uint vertices[4];
     uint vertexCount;
     uint indexCount;
 };
@@ -37,10 +38,6 @@ layout (location = 0) out PerVertexData
   vec4 color;
 } v_out[];
 
-
-float scale = 0.95;
-const vec3 vertices[3] = {vec3(-0.5,-0.5,0), vec3(0,0.5,0), vec3(0.5,-0.5,0)};
-const vec3 colors[3] = {vec3(1.0,0.0,0.0), vec3(0.0,1.0,0.0), vec3(0.0,0.0,1.0)};
 
 #define MAX_COLORS 10
 vec3 meshletcolors[MAX_COLORS] = {
@@ -61,22 +58,27 @@ void main()
     uint workGroupId = gl_WorkGroupID.x;
     uint vertexCount = meshletBuffer.meshlets[workGroupId].vertexCount;
 
+    debugPrintfEXT("\n");
+
+    vec4 pos;
+
     for (uint i = 0; i < vertexCount; i++) {
         uint vert = meshletBuffer.meshlets[workGroupId].vertices[i];
+        debugPrintfEXT("Vertex %d Untransformed: %1.2v4f\n", vert, vertexBuffer.vertices[vert].position);
         
-        vec4 pos = matBuffer.proj * matBuffer.view * vertexBuffer.vertices[vert].position; 
+        pos = matBuffer.proj * matBuffer.view * vertexBuffer.vertices[vert].position; 
+        debugPrintfEXT("Vertex %d Transformed: %1.2v4f\n", vert, pos);
 
         gl_MeshVerticesNV[i].gl_Position = pos;
 
-        v_out[i].color = vec4(meshletcolors[workGroupId], 1.0);
-
+        v_out[i].color = vec4(meshletcolors[vert], 1.0);
     }
 
     uint indexCount = meshletBuffer.meshlets[workGroupId].indexCount;
-    gl_PrimitiveCountNV = uint(indexCount) / 3;
+    gl_PrimitiveCountNV = 2;
 
     for (uint i = 0; i < indexCount; i++)
     {
-        gl_PrimitiveIndicesNV[i] = uint(meshletBuffer.meshlets[workGroupId].indices[i]);
+        gl_PrimitiveIndicesNV[i] = meshletBuffer.meshlets[workGroupId].indices[i];
     }
 }

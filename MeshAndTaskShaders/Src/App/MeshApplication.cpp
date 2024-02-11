@@ -15,6 +15,7 @@
 #include "Mesh/Meshlet.h"
 #include "vulkan/vulkan_enums.hpp"
 #include <cstdint>
+#include <stddef.h>
 
 void MeshApplication::PostInitVulkan()
 {
@@ -32,7 +33,7 @@ void MeshApplication::PostInitVulkan()
         VkCore::ShaderLoader::LoadMeshShaders("MeshAndTaskShaders/Res/Shaders/mesh_shading");
 
     m_VertexBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer);
-    m_VertexBuffer.InitializeOnGpu(m_CubeVertices.data(), m_CubeVertices.size() * sizeof(glm::vec3));
+    m_VertexBuffer.InitializeOnGpu(m_CubeVertices.data(), m_CubeVertices.size() * sizeof(glm::vec4));
 
     m_MeshletBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer);
     m_MeshletBuffer.InitializeOnGpu(meshlets.data(), meshlets.size() * sizeof(Meshlet));
@@ -53,13 +54,16 @@ void MeshApplication::PostInitVulkan()
 
     for (uint32_t i = 0; i < m_Device.GetSwapchain()->GetImageCount(); i++)
     {
-        descriptorBuilder.BindBuffer(0, m_MatBuffers[i], vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eMeshNV);
-        descriptorBuilder.BindBuffer(1, m_VertexBuffer, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eMeshNV);
-        descriptorBuilder.BindBuffer(2, m_MeshletBuffer, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eMeshNV);
+        descriptorBuilder.BindBuffer(0, m_MatBuffers[i], vk::DescriptorType::eUniformBuffer,
+                                     vk::ShaderStageFlagBits::eMeshNV);
+        descriptorBuilder.BindBuffer(1, m_VertexBuffer, vk::DescriptorType::eStorageBuffer,
+                                     vk::ShaderStageFlagBits::eMeshNV);
+        descriptorBuilder.BindBuffer(2, m_MeshletBuffer, vk::DescriptorType::eStorageBuffer,
+                                     vk::ShaderStageFlagBits::eMeshNV);
         descriptorBuilder.Build(tempSet, m_DescriptorSetLayout);
         descriptorBuilder.Clear();
 
-       m_DescriptorSets.emplace_back(tempSet);
+        m_DescriptorSets.emplace_back(tempSet);
     }
 
     // Pipeline
@@ -68,7 +72,7 @@ void MeshApplication::PostInitVulkan()
     m_Pipeline = pipelineBuilder.BindShaderModules(shaders)
                      .BindRenderPass(m_RenderPass.GetVkRenderPass())
                      .AddViewport(glm::uvec4(0, 0, m_WinWidth, m_WinHeight))
-                     .FrontFaceDirection(vk::FrontFace::eClockwise)
+                     .FrontFaceDirection(vk::FrontFace::eCounterClockwise).SetCullMode(vk::CullModeFlagBits::eNone) 
                      .AddDisabledBlendAttachment()
                      .AddDescriptorLayout(m_DescriptorSetLayout)
                      .SetPrimitiveAssembly(vk::PrimitiveTopology::eTriangleList)
