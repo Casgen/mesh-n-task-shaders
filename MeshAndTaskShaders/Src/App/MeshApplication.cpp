@@ -7,12 +7,12 @@
 #include "Log/Log.h"
 #include "Vk/Swapchain.h"
 #include "Vk/Utils.h"
+#include "Vk/Vertex/VertexAttributeBuilder.h"
 #include "glm/ext/vector_float3.hpp"
 #include "glm/matrix.hpp"
 #include "vulkan/vulkan.hpp"
 #include "vulkan/vulkan_core.h"
 #include "Mesh/MeshletGeneration.h"
-#include "Mesh/Meshlet.h"
 #include "vulkan/vulkan_enums.hpp"
 #include <cstdint>
 #include <stddef.h>
@@ -22,61 +22,10 @@ void MeshApplication::PostInitVulkan()
 
     vkCmdDrawMeshTasksNv = (PFN_vkCmdDrawMeshTasksNV)vkGetDeviceProcAddr(*m_Device, "vkCmdDrawMeshTasksNV");
 
-    // VkCore::Texture2D texture("MeshAndTaskShaders/Artwork/modern-brick1_bl/modern-brick1_albedo.png");
-    // texture.InitializeOnTheGpu();
-
     m_Camera = Camera({0.f, 0.f, -3.f}, {0.f, 0.f, 0.f}, (float)m_WinWidth / m_WinHeight);
 
-    std::vector<Meshlet> meshlets = MeshletGeneration::MeshletizeUnoptimized(4, 6, m_CubeIndices);
-
-    const std::vector<VkCore::ShaderData> shaders =
-        VkCore::ShaderLoader::LoadMeshShaders("MeshAndTaskShaders/Res/Shaders/mesh_shading");
-
-    m_VertexBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer);
-    m_VertexBuffer.InitializeOnGpu(m_CubeVertices.data(), m_CubeVertices.size() * sizeof(glm::vec4));
-
-    m_MeshletBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer);
-    m_MeshletBuffer.InitializeOnGpu(meshlets.data(), meshlets.size() * sizeof(Meshlet));
-
-    // Create Buffers
-    for (int i = 0; i < m_Device.GetSwapchain()->GetImageCount(); i++)
-    {
-        VkCore::Buffer matBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eUniformBuffer);
-        matBuffer.InitializeOnCpu(sizeof(MatrixBuffer));
-
-        m_MatBuffers.emplace_back(std::move(matBuffer));
-    }
-
-    // Uniform Buffers
-    VkCore::DescriptorBuilder descriptorBuilder(m_Device);
-
-    vk::DescriptorSet tempSet;
-
-    for (uint32_t i = 0; i < m_Device.GetSwapchain()->GetImageCount(); i++)
-    {
-        descriptorBuilder.BindBuffer(0, m_MatBuffers[i], vk::DescriptorType::eUniformBuffer,
-                                     vk::ShaderStageFlagBits::eMeshNV);
-        descriptorBuilder.BindBuffer(1, m_VertexBuffer, vk::DescriptorType::eStorageBuffer,
-                                     vk::ShaderStageFlagBits::eMeshNV);
-        descriptorBuilder.BindBuffer(2, m_MeshletBuffer, vk::DescriptorType::eStorageBuffer,
-                                     vk::ShaderStageFlagBits::eMeshNV);
-        descriptorBuilder.Build(tempSet, m_DescriptorSetLayout);
-        descriptorBuilder.Clear();
-
-        m_DescriptorSets.emplace_back(tempSet);
-    }
-
-    // Pipeline
-    VkCore::GraphicsPipelineBuilder pipelineBuilder(m_Device, true);
-
-    m_Pipeline = pipelineBuilder.BindShaderModules(shaders)
-                     .BindRenderPass(m_RenderPass.GetVkRenderPass())
-                     .AddViewport(glm::uvec4(0, 0, m_WinWidth, m_WinHeight))
-                     .FrontFaceDirection(vk::FrontFace::eCounterClockwise).SetCullMode(vk::CullModeFlagBits::eNone) 
-                     .AddDisabledBlendAttachment()
-                     .AddDescriptorLayout(m_DescriptorSetLayout)
-                     .SetPrimitiveAssembly(vk::PrimitiveTopology::eTriangleList)
-                     .Build(m_PipelineLayout);
+    InitializeMeshPipeline();
+    InitializeAxisPipeline();
 
     // Frame buffers
     std::vector<vk::ImageView> imageViews = m_Device.GetSwapchain()->GetImageViews();
@@ -134,6 +83,107 @@ void MeshApplication::PostInitVulkan()
     }
 
     TRY_CATCH_END()
+}
+
+void MeshApplication::InitializeMeshPipeline()
+{
+
+    m_Meshlets = MeshletGeneration::MeshletizeUnoptimized(4, 6, m_CubeIndices);
+
+    const std::vector<VkCore::ShaderData> shaders =
+        VkCore::ShaderLoader::LoadMeshShaders("MeshAndTaskShaders/Res/Shaders/mesh_shading");
+
+    m_VertexBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer);
+    m_VertexBuffer.InitializeOnGpu(m_CubeVerticesFloats.data(), m_CubeVerticesFloats.size() * sizeof(float));
+
+    m_MeshletBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer);
+    m_MeshletBuffer.InitializeOnGpu(m_Meshlets.data(), m_Meshlets.size() * sizeof(Meshlet));
+
+    // Create Buffers
+    for (int i = 0; i < m_Device.GetSwapchain()->GetImageCount(); i++)
+    {
+        VkCore::Buffer matBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eUniformBuffer);
+        matBuffer.InitializeOnCpu(sizeof(MatrixBuffer));
+
+        m_MatBuffers.emplace_back(std::move(matBuffer));
+    }
+
+    // Mesh Descriptor Sets
+    VkCore::DescriptorBuilder descriptorBuilder(m_Device);
+
+    vk::DescriptorSet tempSet;
+
+    for (uint32_t i = 0; i < m_Device.GetSwapchain()->GetImageCount(); i++)
+    {
+        descriptorBuilder.BindBuffer(0, m_MatBuffers[i], vk::DescriptorType::eUniformBuffer,
+                                     vk::ShaderStageFlagBits::eMeshNV | vk::ShaderStageFlagBits::eVertex);
+        descriptorBuilder.Build(tempSet, m_MatrixDescSetLayout);
+        descriptorBuilder.Clear();
+
+        m_MatrixDescriptorSets.emplace_back(tempSet);
+    }
+
+    descriptorBuilder.Clear();
+
+    descriptorBuilder.BindBuffer(0, m_VertexBuffer, vk::DescriptorType::eStorageBuffer,
+                                 vk::ShaderStageFlagBits::eMeshNV);
+    descriptorBuilder.BindBuffer(1, m_MeshletBuffer, vk::DescriptorType::eStorageBuffer,
+                                 vk::ShaderStageFlagBits::eMeshNV);
+
+    descriptorBuilder.Build(m_MeshDescSet, m_MeshDescSetLayout);
+
+    // Pipeline
+    VkCore::GraphicsPipelineBuilder pipelineBuilder(m_Device, true);
+
+    m_MeshPipeline = pipelineBuilder.BindShaderModules(shaders)
+                         .BindRenderPass(m_RenderPass.GetVkRenderPass())
+                         .AddViewport(glm::uvec4(0, 0, m_WinWidth, m_WinHeight))
+                         .FrontFaceDirection(vk::FrontFace::eCounterClockwise)
+                         .SetCullMode(vk::CullModeFlagBits::eBack)
+                         .AddDisabledBlendAttachment()
+                         .AddDescriptorLayout(m_MatrixDescSetLayout)
+                         .AddDescriptorLayout(m_MeshDescSetLayout)
+                         .SetPrimitiveAssembly(vk::PrimitiveTopology::eTriangleList)
+                         .Build(m_MeshPipelineLayout);
+}
+
+void MeshApplication::InitializeAxisPipeline()
+{
+
+    const float m_AxisVertexData[12] = {
+        0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0,
+    };
+
+    const uint32_t m_AxisIndexData[6] = {
+        0, 1, 0, 2, 0, 3,
+    };
+
+    m_AxisBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eVertexBuffer);
+    m_AxisBuffer.InitializeOnGpu(&m_AxisVertexData, sizeof(float) * 12);
+
+    m_AxisIndexBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eIndexBuffer);
+    m_AxisIndexBuffer.InitializeOnGpu(&m_AxisIndexData, sizeof(uint32_t) * 6);
+
+    VkCore::VertexAttributeBuilder attributeBuilder{};
+
+    attributeBuilder.PushAttribute<float>(3);
+    attributeBuilder.SetBinding(0);
+
+    std::vector<VkCore::ShaderData> shaderData =
+        VkCore::ShaderLoader::LoadClassicShaders("MeshAndTaskShaders/Res/Shaders/axis");
+    VkCore::GraphicsPipelineBuilder pipelineBuilder(m_Device);
+
+    m_AxisPipeline = pipelineBuilder.BindShaderModules(shaderData)
+                        .SetLineWidth(3.f)
+                         .BindRenderPass(m_RenderPass.GetVkRenderPass())
+                         .AddViewport(glm::uvec4(0, 0, m_WinWidth, m_WinHeight))
+                         .FrontFaceDirection(vk::FrontFace::eCounterClockwise)
+                         .SetCullMode(vk::CullModeFlagBits::eBack)
+                         .BindVertexAttributes(attributeBuilder)
+                         .AddDisabledBlendAttachment()
+                         .AddDescriptorLayout(m_MatrixDescSetLayout)
+                         .SetPrimitiveAssembly(vk::PrimitiveTopology::eLineList)
+                         .Build(m_AxisPipelineLayout);
 }
 
 void MeshApplication::DrawFrame()
@@ -208,11 +258,23 @@ void MeshApplication::RecordCommandBuffer(const vk::CommandBuffer& commandBuffer
     {
         commandBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
 
-        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_Pipeline);
-        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_PipelineLayout, 0, 1,
-                                         &m_DescriptorSets[imageIndex], 0, nullptr);
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_MeshPipeline);
+        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_MeshPipelineLayout, 0, 1,
+                                         &m_MatrixDescriptorSets[imageIndex], 0, nullptr);
 
-        vkCmdDrawMeshTasksNv(&*commandBuffer, 6, 0);
+        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_MeshPipelineLayout, 1, 1,
+                                         &m_MeshDescSet, 0, nullptr);
+
+        vkCmdDrawMeshTasksNv(&*commandBuffer, m_Meshlets.size(), 0);
+
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_AxisPipeline);
+        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_AxisPipelineLayout, 0, 1,
+                                         &m_MatrixDescriptorSets[imageIndex], 0, nullptr);
+        
+        commandBuffer.bindVertexBuffers(0,m_AxisBuffer.GetVkBuffer(),{0});
+
+        commandBuffer.bindIndexBuffer(m_AxisIndexBuffer.GetVkBuffer(), 0, vk::IndexType::eUint32);
+        commandBuffer.drawIndexed(6, 1, 0, 0, 0);
 
         commandBuffer.endRenderPass();
     }

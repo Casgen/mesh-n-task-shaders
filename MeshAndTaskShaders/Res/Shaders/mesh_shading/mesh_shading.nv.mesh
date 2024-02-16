@@ -15,9 +15,10 @@ layout (binding = 0) uniform MatrixBuffer {
 
 struct s_vertex {
     vec4 position;
+    vec4 color;
 };
 
-layout (std430, binding = 1) buffer VertexBuffer {
+layout (std430, set = 1, binding = 0) buffer VertexBuffer {
     s_vertex vertices[];
 } vertexBuffer;
 
@@ -29,15 +30,11 @@ struct s_meshlet {
     uint indexCount;
 };
 
-layout (std430, binding = 2) buffer MeshletBuffer {
+layout (std430, set = 1, binding = 1) buffer MeshletBuffer {
      s_meshlet meshlets[];
 } meshletBuffer;
 
-layout (location = 0) out PerVertexData
-{
-  vec4 color;
-} v_out[];
-
+layout (location = 0) out vec4 v_Color[]; 
 
 #define MAX_COLORS 10
 vec3 meshletcolors[MAX_COLORS] = {
@@ -58,20 +55,20 @@ void main()
     uint workGroupId = gl_WorkGroupID.x;
     uint vertexCount = meshletBuffer.meshlets[workGroupId].vertexCount;
 
-    debugPrintfEXT("\n");
+    // debugPrintfEXT("\n");
 
     vec4 pos;
 
     for (uint i = 0; i < vertexCount; i++) {
         uint vert = meshletBuffer.meshlets[workGroupId].vertices[i];
-        debugPrintfEXT("Vertex %d Untransformed: %1.2v4f\n", vert, vertexBuffer.vertices[vert].position);
+        // debugPrintfEXT("Vertex %d Untransformed: %1.2v4f\n", vert, vertexBuffer.vertices[vert].position);
         
         pos = matBuffer.proj * matBuffer.view * vertexBuffer.vertices[vert].position; 
-        debugPrintfEXT("Vertex %d Transformed: %1.2v4f\n", vert, pos);
+        // debugPrintfEXT("Vertex %d Transformed: %1.2v4f\n", vert, pos);
 
         gl_MeshVerticesNV[i].gl_Position = pos;
 
-        v_out[i].color = vec4(meshletcolors[vert], 1.0);
+        v_Color[i] = vertexBuffer.vertices[vert].color;
     }
 
     uint indexCount = meshletBuffer.meshlets[workGroupId].indexCount;
@@ -80,5 +77,8 @@ void main()
     for (uint i = 0; i < indexCount; i++)
     {
         gl_PrimitiveIndicesNV[i] = meshletBuffer.meshlets[workGroupId].indices[i];
+        debugPrintfEXT("workGroupId: %d, gl_PrimitiveIndicesNV[%d]: %d\n", workGroupId, i, gl_PrimitiveIndicesNV[i]);
     }
+
+    debugPrintfEXT("\n");
 }
