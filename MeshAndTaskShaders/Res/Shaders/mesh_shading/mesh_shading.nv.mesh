@@ -55,16 +55,16 @@ void main()
     uint workGroupId = gl_WorkGroupID.x;
     uint vertexCount = meshletBuffer.meshlets[workGroupId].vertexCount;
 
-    // debugPrintfEXT("\n");
+    debugPrintfEXT("\n");
 
     vec4 pos;
 
     for (uint i = 0; i < vertexCount; i++) {
         uint vert = meshletBuffer.meshlets[workGroupId].vertices[i];
-        // debugPrintfEXT("Vertex %d Untransformed: %1.2v4f\n", vert, vertexBuffer.vertices[vert].position);
+        debugPrintfEXT("Vertex %d Untransformed: %1.2v4f\n", vert, vertexBuffer.vertices[vert].position);
         
         pos = matBuffer.proj * matBuffer.view * vertexBuffer.vertices[vert].position; 
-        // debugPrintfEXT("Vertex %d Transformed: %1.2v4f\n", vert, pos);
+        debugPrintfEXT("Vertex %d Transformed: %1.2v4f\n", vert, pos);
 
         gl_MeshVerticesNV[i].gl_Position = pos;
 

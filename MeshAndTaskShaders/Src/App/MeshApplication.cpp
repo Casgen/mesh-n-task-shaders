@@ -14,13 +14,17 @@
 #include "vulkan/vulkan_core.h"
 #include "Mesh/MeshletGeneration.h"
 #include "vulkan/vulkan_enums.hpp"
+#include "vulkan/vulkan_structs.hpp"
 #include <cstdint>
 #include <stddef.h>
 
 void MeshApplication::PostInitVulkan()
 {
 
-    vkCmdDrawMeshTasksNv = (PFN_vkCmdDrawMeshTasksNV)vkGetDeviceProcAddr(*m_Device, "vkCmdDrawMeshTasksNV");
+    vkCmdDrawMeshTasksNv =
+        (PFN_vkCmdDrawMeshTasksNV)vkGetDeviceProcAddr(*VkCore::DeviceManager::GetDevice(), "vkCmdDrawMeshTasksNV");
+    vkCmdDrawMeshTasksEXT =
+        (PFN_vkCmdDrawMeshTasksEXT)vkGetDeviceProcAddr(*VkCore::DeviceManager::GetDevice(), "vkCmdDrawMeshTasksEXT");
 
     m_Camera = Camera({0.f, 0.f, -3.f}, {0.f, 0.f, 0.f}, (float)m_WinWidth / m_WinHeight);
 
@@ -28,40 +32,44 @@ void MeshApplication::PostInitVulkan()
     InitializeAxisPipeline();
 
     // Frame buffers
-    std::vector<vk::ImageView> imageViews = m_Device.GetSwapchain()->GetImageViews();
+    std::vector<vk::ImageView> imageViews = VkCore::DeviceManager::GetDevice().GetSwapchain()->GetImageViews();
 
     TRY_CATCH_BEGIN()
 
     for (const vk::ImageView& view : imageViews)
     {
 
+        vk::ImageView imageViews[] = {view, m_RenderPass.GetDepthImage().GetImageView()};
+
         vk::FramebufferCreateInfo createInfo{};
+
         createInfo.setWidth(m_WinWidth)
             .setHeight(m_WinHeight)
             .setLayers(1)
             .setRenderPass(m_RenderPass.GetVkRenderPass())
-            .setAttachments(view);
+            .setAttachments(imageViews);
 
-        m_SwapchainFramebuffers.emplace_back(m_Device.CreateFrameBuffer(createInfo));
+        m_SwapchainFramebuffers.emplace_back(VkCore::DeviceManager::GetDevice().CreateFrameBuffer(createInfo));
     }
 
     TRY_CATCH_END()
 
-    vk::CommandPoolCreateInfo createInfo{vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
-                                         m_PhysicalDevice.GetQueueFamilyIndices().m_GraphicsFamily.value()};
+    vk::CommandPoolCreateInfo createInfo{
+        vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
+        VkCore::DeviceManager::GetPhysicalDevice().GetQueueFamilyIndices().m_GraphicsFamily.value()};
 
     // Command Buffers
-    m_CommandPool = m_Device.CreateCommandPool(createInfo);
+    m_CommandPool = VkCore::DeviceManager::GetDevice().CreateCommandPool(createInfo);
 
     vk::CommandBufferAllocateInfo allocateInfo{};
 
     allocateInfo.setLevel(vk::CommandBufferLevel::ePrimary)
         .setCommandPool(m_CommandPool)
-        .setCommandBufferCount(m_Device.GetSwapchain()->GetImageViews().size());
+        .setCommandBufferCount(VkCore::DeviceManager::GetDevice().GetSwapchain()->GetImageViews().size());
 
     TRY_CATCH_BEGIN()
 
-    m_CommandBuffers = m_Device.AllocateCommandBuffers(allocateInfo);
+    m_CommandBuffers = VkCore::DeviceManager::GetDevice().AllocateCommandBuffers(allocateInfo);
 
     TRY_CATCH_END()
 
@@ -74,12 +82,14 @@ void MeshApplication::PostInitVulkan()
 
     TRY_CATCH_BEGIN()
 
-    for (int i = 0; i < m_Device.GetSwapchain()->GetNumberOfSwapBuffers(); i++)
+    for (int i = 0; i < VkCore::DeviceManager::GetDevice().GetSwapchain()->GetNumberOfSwapBuffers(); i++)
     {
-        m_ImageAvailableSemaphores.emplace_back(m_Device.CreateSemaphore(imageAvailableCreateInfo));
-        m_RenderFinishedSemaphores.emplace_back(m_Device.CreateSemaphore(renderFinishedCreateInfo));
+        m_ImageAvailableSemaphores.emplace_back(
+            VkCore::DeviceManager::GetDevice().CreateSemaphore(imageAvailableCreateInfo));
+        m_RenderFinishedSemaphores.emplace_back(
+            VkCore::DeviceManager::GetDevice().CreateSemaphore(renderFinishedCreateInfo));
 
-        m_InFlightFences.emplace_back(m_Device.CreateFence(fenceCreateInfo));
+        m_InFlightFences.emplace_back(VkCore::DeviceManager::GetDevice().CreateFence(fenceCreateInfo));
     }
 
     TRY_CATCH_END()
@@ -100,7 +110,7 @@ void MeshApplication::InitializeMeshPipeline()
     m_MeshletBuffer.InitializeOnGpu(m_Meshlets.data(), m_Meshlets.size() * sizeof(Meshlet));
 
     // Create Buffers
-    for (int i = 0; i < m_Device.GetSwapchain()->GetImageCount(); i++)
+    for (int i = 0; i < VkCore::DeviceManager::GetDevice().GetSwapchain()->GetImageCount(); i++)
     {
         VkCore::Buffer matBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eUniformBuffer);
         matBuffer.InitializeOnCpu(sizeof(MatrixBuffer));
@@ -109,11 +119,11 @@ void MeshApplication::InitializeMeshPipeline()
     }
 
     // Mesh Descriptor Sets
-    VkCore::DescriptorBuilder descriptorBuilder(m_Device);
+    VkCore::DescriptorBuilder descriptorBuilder(VkCore::DeviceManager::GetDevice());
 
     vk::DescriptorSet tempSet;
 
-    for (uint32_t i = 0; i < m_Device.GetSwapchain()->GetImageCount(); i++)
+    for (uint32_t i = 0; i < VkCore::DeviceManager::GetDevice().GetSwapchain()->GetImageCount(); i++)
     {
         descriptorBuilder.BindBuffer(0, m_MatBuffers[i], vk::DescriptorType::eUniformBuffer,
                                      vk::ShaderStageFlagBits::eMeshNV | vk::ShaderStageFlagBits::eVertex);
@@ -133,13 +143,14 @@ void MeshApplication::InitializeMeshPipeline()
     descriptorBuilder.Build(m_MeshDescSet, m_MeshDescSetLayout);
 
     // Pipeline
-    VkCore::GraphicsPipelineBuilder pipelineBuilder(m_Device, true);
+    VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice(), true);
 
     m_MeshPipeline = pipelineBuilder.BindShaderModules(shaders)
                          .BindRenderPass(m_RenderPass.GetVkRenderPass())
+                         .EnableDepthTest()
                          .AddViewport(glm::uvec4(0, 0, m_WinWidth, m_WinHeight))
                          .FrontFaceDirection(vk::FrontFace::eCounterClockwise)
-                         .SetCullMode(vk::CullModeFlagBits::eBack)
+                         .SetCullMode(vk::CullModeFlagBits::eNone)
                          .AddDisabledBlendAttachment()
                          .AddDescriptorLayout(m_MatrixDescSetLayout)
                          .AddDescriptorLayout(m_MeshDescSetLayout)
@@ -171,10 +182,9 @@ void MeshApplication::InitializeAxisPipeline()
 
     std::vector<VkCore::ShaderData> shaderData =
         VkCore::ShaderLoader::LoadClassicShaders("MeshAndTaskShaders/Res/Shaders/axis");
-    VkCore::GraphicsPipelineBuilder pipelineBuilder(m_Device);
+    VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice());
 
     m_AxisPipeline = pipelineBuilder.BindShaderModules(shaderData)
-                        .SetLineWidth(3.f)
                          .BindRenderPass(m_RenderPass.GetVkRenderPass())
                          .AddViewport(glm::uvec4(0, 0, m_WinWidth, m_WinHeight))
                          .FrontFaceDirection(vk::FrontFace::eCounterClockwise)
@@ -189,16 +199,17 @@ void MeshApplication::InitializeAxisPipeline()
 void MeshApplication::DrawFrame()
 {
 
-    m_Device.WaitForFences(m_InFlightFences[m_CurrentFrame], false);
+    VkCore::DeviceManager::GetDevice().WaitForFences(m_InFlightFences[m_CurrentFrame], false);
 
     uint32_t imageIndex;
-    vk::ResultValue<uint32_t> result = m_Device.AcquireNextImageKHR(m_ImageAvailableSemaphores[m_CurrentFrame]);
+    vk::ResultValue<uint32_t> result =
+        VkCore::DeviceManager::GetDevice().AcquireNextImageKHR(m_ImageAvailableSemaphores[m_CurrentFrame]);
 
     VkCore::Utils::CheckVkResult(result.result);
 
     imageIndex = result.value;
 
-    m_Device.ResetFences(m_InFlightFences[m_CurrentFrame]);
+    VkCore::DeviceManager::GetDevice().ResetFences(m_InFlightFences[m_CurrentFrame]);
     m_CommandBuffers[m_CurrentFrame].reset();
 
     RecordCommandBuffer(m_CommandBuffers[m_CurrentFrame], imageIndex);
@@ -213,11 +224,11 @@ void MeshApplication::DrawFrame()
 
     TRY_CATCH_BEGIN()
 
-    m_Device.GetGraphicsQueue().submit(submitInfo, m_InFlightFences[m_CurrentFrame]);
+    VkCore::DeviceManager::GetDevice().GetGraphicsQueue().submit(submitInfo, m_InFlightFences[m_CurrentFrame]);
 
     TRY_CATCH_END()
 
-    vk::SwapchainKHR swapchain = m_Device.GetSwapchain()->GetVkSwapchain();
+    vk::SwapchainKHR swapchain = VkCore::DeviceManager::GetDevice().GetSwapchain()->GetVkSwapchain();
 
     vk::PresentInfoKHR presentInfo{};
     presentInfo.setWaitSemaphores(m_RenderFinishedSemaphores[m_CurrentFrame])
@@ -225,9 +236,9 @@ void MeshApplication::DrawFrame()
         .setImageIndices(imageIndex)
         .setPResults(nullptr);
 
-    VkCore::Utils::CheckVkResult(m_Device.GetPresentQueue().presentKHR(presentInfo));
+    VkCore::Utils::CheckVkResult(VkCore::DeviceManager::GetDevice().GetPresentQueue().presentKHR(presentInfo));
 
-    m_CurrentFrame = (m_CurrentFrame + 1) % m_Device.GetSwapchain()->GetNumberOfSwapBuffers();
+    m_CurrentFrame = (m_CurrentFrame + 1) % VkCore::DeviceManager::GetDevice().GetSwapchain()->GetNumberOfSwapBuffers();
 }
 
 void MeshApplication::RecordCommandBuffer(const vk::CommandBuffer& commandBuffer, const uint32_t imageIndex)
@@ -242,14 +253,16 @@ void MeshApplication::RecordCommandBuffer(const vk::CommandBuffer& commandBuffer
 
     vk::CommandBufferBeginInfo cmdBufferBeginInfo{};
 
-    vk::ClearValue clearValue{};
-    clearValue.setColor({.0f, .0f, 0.f, 1.f});
+    vk::ClearValue clearValues[2] = {};
+
+    clearValues[0].color = {.2f, .0f, 0.3f, 1.f};
+    clearValues[1].depthStencil = vk::ClearDepthStencilValue(1.f, 0);
 
     vk::RenderPassBeginInfo renderPassBeginInfo{};
     renderPassBeginInfo.setRenderPass(m_RenderPass.GetVkRenderPass())
         .setRenderArea(vk::Rect2D({0, 0}, {m_WinWidth, m_WinHeight}))
         .setFramebuffer(m_SwapchainFramebuffers[imageIndex])
-        .setClearValues(clearValue);
+        .setClearValues(clearValues);
 
     TRY_CATCH_BEGIN()
 
@@ -262,16 +275,16 @@ void MeshApplication::RecordCommandBuffer(const vk::CommandBuffer& commandBuffer
         commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_MeshPipelineLayout, 0, 1,
                                          &m_MatrixDescriptorSets[imageIndex], 0, nullptr);
 
-        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_MeshPipelineLayout, 1, 1,
-                                         &m_MeshDescSet, 0, nullptr);
+        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_MeshPipelineLayout, 1, 1, &m_MeshDescSet,
+                                         0, nullptr);
 
         vkCmdDrawMeshTasksNv(&*commandBuffer, m_Meshlets.size(), 0);
 
         commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_AxisPipeline);
         commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_AxisPipelineLayout, 0, 1,
                                          &m_MatrixDescriptorSets[imageIndex], 0, nullptr);
-        
-        commandBuffer.bindVertexBuffers(0,m_AxisBuffer.GetVkBuffer(),{0});
+
+        commandBuffer.bindVertexBuffers(0, m_AxisBuffer.GetVkBuffer(), {0});
 
         commandBuffer.bindIndexBuffer(m_AxisIndexBuffer.GetVkBuffer(), 0, vk::IndexType::eUint32);
         commandBuffer.drawIndexed(6, 1, 0, 0, 0);
