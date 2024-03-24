@@ -5,7 +5,7 @@
 
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 layout(triangles) out;
-layout(max_vertices=4, max_primitives=2) out;
+layout(max_vertices=64, max_primitives=42) out;
 
 layout (binding = 0) uniform MatrixBuffer {
     mat4 model;
@@ -14,30 +14,33 @@ layout (binding = 0) uniform MatrixBuffer {
 } matBuffer;
 
 struct s_vertex {
-    vec4 position;
-    vec4 color;
+    vec3 position;
+    vec3 normal;
+    vec3 tangent;
+    vec3 bitagent;
+    vec2 texCoords;
 };
 
 layout (std430, set = 1, binding = 0) buffer VertexBuffer {
     s_vertex vertices[];
-} vertexBuffer;
+} vertex_buffer;
 
 
 struct s_meshlet {
-    uint indices[6];
-    uint vertices[4];
-    uint vertexCount;
-    uint indexCount;
+    uint indices[126];
+    uint vertices[64];
+    uint vertex_count;
+    uint index_count;
 };
 
 layout (std430, set = 1, binding = 1) buffer MeshletBuffer {
      s_meshlet meshlets[];
-} meshletBuffer;
+} meshlet_buffer;
 
 layout (location = 0) out vec4 v_Color[]; 
 
 #define MAX_COLORS 10
-vec3 meshletcolors[MAX_COLORS] = {
+vec3 meshlet_colors[MAX_COLORS] = {
   vec3(1,0,0), 
   vec3(0,1,0),
   vec3(0,0,1),
@@ -52,33 +55,29 @@ vec3 meshletcolors[MAX_COLORS] = {
 
 void main()
 {
-    uint workGroupId = gl_WorkGroupID.x;
-    uint vertexCount = meshletBuffer.meshlets[workGroupId].vertexCount;
+    uint workgroup_id = gl_WorkGroupID.x;
+    uint vertex_count = meshlet_buffer.meshlets[workgroup_id].vertex_count;
 
-    debugPrintfEXT("\n");
-
-    vec4 pos;
-
-    for (uint i = 0; i < vertexCount; i++) {
-        uint vert = meshletBuffer.meshlets[workGroupId].vertices[i];
-        debugPrintfEXT("Vertex %d Untransformed: %1.2v4f\n", vert, vertexBuffer.vertices[vert].position);
+    for (uint i = 0; i < vertex_count; i++) {
+        uint vert = meshlet_buffer.meshlets[workgroup_id].vertices[i];
         
-        pos = matBuffer.proj * matBuffer.view * vertexBuffer.vertices[vert].position; 
-        debugPrintfEXT("Vertex %d Transformed: %1.2v4f\n", vert, pos);
+        vec4 pos = matBuffer.proj * matBuffer.view * vec4(vertex_buffer.vertices[vert].position * 6.f, 1.0f); 
 
         gl_MeshVerticesNV[i].gl_Position = pos;
 
-        v_Color[i] = vertexBuffer.vertices[vert].color;
+        v_Color[i] = vec4(meshlet_colors[workgroup_id % MAX_COLORS],1.0f);
     }
 
-    uint indexCount = meshletBuffer.meshlets[workGroupId].indexCount;
-    gl_PrimitiveCountNV = 2;
+    uint index_count = meshlet_buffer.meshlets[workgroup_id].index_count;
+    uint primitive_count = uint(index_count) / 3;
 
-    for (uint i = 0; i < indexCount; i++)
+    gl_PrimitiveCountNV = primitive_count;
+
+    for (uint i = 0; i < index_count; i += 3)
     {
-        gl_PrimitiveIndicesNV[i] = meshletBuffer.meshlets[workGroupId].indices[i];
-        debugPrintfEXT("workGroupId: %d, gl_PrimitiveIndicesNV[%d]: %d\n", workGroupId, i, gl_PrimitiveIndicesNV[i]);
+        gl_PrimitiveIndicesNV[i] = meshlet_buffer.meshlets[workgroup_id].indices[i];
+        gl_PrimitiveIndicesNV[i + 1] = meshlet_buffer.meshlets[workgroup_id].indices[i + 1];
+        gl_PrimitiveIndicesNV[i + 2] = meshlet_buffer.meshlets[workgroup_id].indices[i + 2];
     }
 
-    debugPrintfEXT("\n");
 }
