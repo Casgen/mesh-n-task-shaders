@@ -14,6 +14,7 @@
 #include "Vk/Swapchain.h"
 #include "Vk/Utils.h"
 #include "Vk/Vertex/VertexAttributeBuilder.h"
+#include "glm/ext/matrix_transform.hpp"
 #include "glm/ext/vector_float3.hpp"
 #include "glm/matrix.hpp"
 #include "vulkan/vulkan.hpp"
@@ -29,7 +30,7 @@ void MeshApplication::PostInitVulkan() {
     vkCmdDrawMeshTasksEXT =
         (PFN_vkCmdDrawMeshTasksEXT)vkGetDeviceProcAddr(*VkCore::DeviceManager::GetDevice(), "vkCmdDrawMeshTasksEXT");
 
-    m_Camera = Camera({0.f, 0.f, -3.f}, {0.f, 0.f, 0.f}, (float)m_WinWidth / m_WinHeight);
+    m_Camera = Camera({0.f, 0.f, -2.f}, {0.f, 0.f, 0.f}, (float)m_WinWidth / m_WinHeight);
 
     // InitializeMeshPipeline();
     InitializeModelPipeline();
@@ -163,7 +164,7 @@ void MeshApplication::InitializeModelPipeline() {
         const std::vector<VkCore::ShaderData> shaders =
             VkCore::ShaderLoader::LoadMeshShaders("MeshAndTaskShaders/Res/Shaders/mesh_shading");
 
-        m_BunnyModel = new Model("MeshAndTaskShaders/Res/Artwork/OBJs/bunny.obj");
+        m_BunnyModel = new Model("MeshAndTaskShaders/Res/Artwork/OBJs/kitten.obj");
         // Create Buffers
         for (int i = 0; i < VkCore::DeviceManager::GetDevice().GetSwapchain()->GetImageCount(); i++) {
             VkCore::Buffer matBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eUniformBuffer);
@@ -198,6 +199,8 @@ void MeshApplication::InitializeModelPipeline() {
                               .AddDisabledBlendAttachment()
                               .AddDescriptorLayout(m_MatrixDescSetLayout)
                               .AddDescriptorLayout(m_BunnyModel->GetMeshes()[0].GetDescriptorSetLayout())
+                              .AddPushConstantRange<FragmentPC>(vk::ShaderStageFlagBits::eFragment)
+                              .AddPushConstantRange<MeshPC>(vk::ShaderStageFlagBits::eMeshNV, sizeof(FragmentPC))
                               .SetPrimitiveAssembly(vk::PrimitiveTopology::eTriangleList)
                               .Build(m_ModelPipelineLayout);
     }
@@ -291,6 +294,9 @@ void MeshApplication::RecordCommandBuffer(const vk::CommandBuffer& commandBuffer
     ubo.m_Proj = m_Camera.GetProjMatrix();
     ubo.m_View = m_Camera.GetViewMatrix();
 
+    fragment_pc.cam_pos = m_Camera.GetPosition();
+    fragment_pc.cam_view_dir = m_Camera.GetViewDirection();
+
     m_MatBuffers[imageIndex].UpdateData(&ubo);
 
     vk::CommandBufferBeginInfo cmdBufferBeginInfo{};
@@ -318,6 +324,12 @@ void MeshApplication::RecordCommandBuffer(const vk::CommandBuffer& commandBuffer
             commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_ModelPipelineLayout, 0, 1,
                                              &m_MatrixDescriptorSets[imageIndex], 0, nullptr);
 
+            commandBuffer.pushConstants(m_ModelPipelineLayout, vk::ShaderStageFlagBits::eFragment, 0,
+                                        sizeof(FragmentPC), &fragment_pc);
+
+            commandBuffer.pushConstants(m_ModelPipelineLayout, vk::ShaderStageFlagBits::eMeshNV, sizeof(FragmentPC),
+                                        sizeof(MeshPC), &mesh_pc);
+
             for (const Mesh& mesh : m_BunnyModel->GetMeshes()) {
                 const vk::DescriptorSetLayout layout = mesh.GetDescriptorSetLayout();
                 const vk::DescriptorSet set = mesh.GetDescriptorSet();
@@ -325,7 +337,7 @@ void MeshApplication::RecordCommandBuffer(const vk::CommandBuffer& commandBuffer
                 commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_ModelPipelineLayout, 1, 1, &set, 0,
                                                  nullptr);
 
-                vkCmdDrawMeshTasksNv(&*commandBuffer, m_BunnyModel.GetMeshletCount(), 0);
+                vkCmdDrawMeshTasksNv(&*commandBuffer, mesh.GetMeshletCount(), 0);
             }
         }
 
@@ -387,6 +399,15 @@ bool MeshApplication::OnMouseMoved(MouseMovedEvent& event) {
         m_Camera.Pitch(-diff.y);
     }
 
+    if (m_MouseState.m_IsLMBPressed) {
+        const glm::ivec2 diff = m_MouseState.m_LastPosition - event.GetPos();
+
+        angles += static_cast<glm::vec2>(diff) * 0.01f;
+
+        mesh_pc.rotation_mat = glm::rotate(glm::identity<glm::mat4>(), angles.x, {0.f, 1.f, 0.f});
+        mesh_pc.rotation_mat = glm::rotate(mesh_pc.rotation_mat, angles.y, {-1.f, 0.f, 0.f});
+    }
+
     m_MouseState.UpdatePosition(event.GetPos());
 
     return true;
@@ -438,6 +459,9 @@ bool MeshApplication::OnKeyPressed(KeyPressedEvent& event) {
         case GLFW_KEY_Q:
             m_Camera.SetIsMovingDown(true);
             return true;
+        case GLFW_KEY_M:
+            fragment_pc.is_meshlet_view_on = !fragment_pc.is_meshlet_view_on;
+            LOGF(Application, Verbose, "Meshlet view is %d", fragment_pc.is_meshlet_view_on)
         default:
             return false;
     }

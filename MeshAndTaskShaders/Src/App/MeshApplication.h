@@ -1,6 +1,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "../Model/PushConstants.h"
 #include "App/BaseApplication.h"
 #include "Mesh/Meshlet.h"
 #include "Mesh/Model.h"
@@ -66,6 +67,20 @@ class MeshApplication : public VkCore::BaseApplication {
     VkCore::Buffer m_AxisIndexBuffer;
 
     std::vector<Meshlet> m_Meshlets;
+
+    glm::vec2 angles = {0.f, 0.f};
+
+    MeshPC mesh_pc;
+
+    FragmentPC fragment_pc = {
+        .diffusion_color = glm::vec3(1.f),
+        .is_meshlet_view_on = false,
+        .ambient_color = glm::vec3(1.f),
+        .specular_color = glm::vec3(1.f),
+        .direction = glm::vec3(1.f),
+        .cam_pos = glm::vec3(0.f),
+        .cam_view_dir = glm::vec3(0.f),
+    };
 
     PFN_vkCmdDrawMeshTasksNV vkCmdDrawMeshTasksNv;
     PFN_vkCmdDrawMeshTasksEXT vkCmdDrawMeshTasksEXT;
