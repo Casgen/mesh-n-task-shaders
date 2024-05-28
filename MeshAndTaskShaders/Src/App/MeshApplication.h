@@ -2,50 +2,50 @@
 #include <vector>
 
 #include "../Model/PushConstants.h"
-#include "App/BaseApplication.h"
+#include "../Renderer/VulkanRenderer.h"
+#include "Event/KeyEvent.h"
+#include "Event/MouseEvent.h"
 #include "Event/WindowEvent.h"
 #include "Mesh/Meshlet.h"
 #include "Mesh/Model.h"
 #include "Model/Camera.h"
-#include "Vk/Devices/DeviceManager.h"
+#include "Model/MouseState.h"
+#include "Vk/Descriptors/DescriptorBuilder.h"
 #include "vulkan/vulkan_core.h"
 #include "vulkan/vulkan_handles.hpp"
 
-class MeshApplication : public VkCore::BaseApplication
+class MeshApplication
 {
   public:
-    MeshApplication(const uint32_t winWidth, const uint32_t winHeight)
-        : BaseApplication(winWidth, winHeight, "Mesh and Task Shading")
-    {
-        VkCore::DeviceManager::AddDeviceExtension(VK_NV_MESH_SHADER_EXTENSION_NAME);
-        VkCore::DeviceManager::AddDeviceExtension(VK_EXT_MESH_SHADER_EXTENSION_NAME);
-        VkCore::DeviceManager::AddDeviceExtension(VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME);
-    }
+    MeshApplication() {};
 
-    void PreInitVulkan() override {};
-    void PostInitVulkan() override;
-    void DrawFrame() override;
-    void Shutdown() override;
-    void RecordCommandBuffer(const vk::CommandBuffer& commandBuffer, const uint32_t imageIndex) override;
+    void Run(const uint32_t winWidth, const uint32_t winHeight);
 
-    void InitializeMeshPipeline();
+    void DrawFrame();
+    void Loop();
+    void Shutdown();
+
     void InitializeModelPipeline();
     void InitializeAxisPipeline();
 
     void RecreateSwapchain();
-    void CreateFramebuffers();
 
-    bool OnMousePress(MouseButtonEvent& event) override;
-    bool OnMouseMoved(MouseMovedEvent& event) override;
-    bool OnMouseRelease(MouseButtonEvent& event) override;
+    void OnEvent(Event& event);
 
-    bool OnKeyPressed(KeyPressedEvent& event) override;
-    bool OnKeyReleased(KeyReleasedEvent& event) override;
+    bool OnMousePress(MouseButtonEvent& event);
+    bool OnMouseMoved(MouseMovedEvent& event);
+    bool OnMouseRelease(MouseButtonEvent& event);
 
-    bool OnWindowResize(WindowResizedEvent& event) override;
+    bool OnKeyPressed(KeyPressedEvent& event);
+    bool OnKeyReleased(KeyReleasedEvent& event);
 
+    bool OnWindowResize(WindowResizedEvent& event);
+
+  private:
     vk::Pipeline m_MeshPipeline;
     vk::PipelineLayout m_MeshPipelineLayout;
+
+    MouseState m_MouseState;
 
     vk::Pipeline m_AxisPipeline;
     vk::PipelineLayout m_AxisPipelineLayout;
@@ -92,6 +92,13 @@ class MeshApplication : public VkCore::BaseApplication
 
     PFN_vkCmdDrawMeshTasksNV vkCmdDrawMeshTasksNv;
     PFN_vkCmdDrawMeshTasksEXT vkCmdDrawMeshTasksEXT;
+
+    VkCore::DescriptorBuilder m_DescriptorBuilder;
+
+    bool m_FramebufferResized = false;
+
+    VulkanRenderer m_Renderer;
+    VkCore::Window* m_Window = nullptr;
 
     Model* m_Model = nullptr;
     Camera m_Camera;
