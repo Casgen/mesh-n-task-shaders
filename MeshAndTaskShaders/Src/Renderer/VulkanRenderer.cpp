@@ -255,6 +255,8 @@ uint32_t VulkanRenderer::EndDraw()
 void VulkanRenderer::Shutdown()
 {
     VkCore::Device& device = VkCore::DeviceManager::GetDevice();
+
+    device.DestroyCommandPool(m_CommandPool);
     m_RenderPass.Destroy();
 
     device.DestroySemaphores(m_RenderFinishedSemaphores);

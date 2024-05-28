@@ -273,8 +273,6 @@ void MeshApplication::Shutdown()
     device.DestroyDescriptorSetLayout(m_MeshDescSetLayout);
     device.DestroyDescriptorSetLayout(m_MatrixDescSetLayout);
 
-    device.DestroyCommandPool(m_CommandPool);
-
     delete m_Window;
 }
 

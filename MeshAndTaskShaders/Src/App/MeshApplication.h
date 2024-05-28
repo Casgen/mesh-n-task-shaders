@@ -42,9 +42,6 @@ class MeshApplication
     bool OnWindowResize(WindowResizedEvent& event);
 
   private:
-    vk::Pipeline m_MeshPipeline;
-    vk::PipelineLayout m_MeshPipelineLayout;
-
     MouseState m_MouseState;
 
     vk::Pipeline m_AxisPipeline;
@@ -53,13 +50,6 @@ class MeshApplication
     vk::Pipeline m_ModelPipeline;
     vk::PipelineLayout m_ModelPipelineLayout;
 
-    vk::CommandPool m_CommandPool;
-    std::vector<vk::CommandBuffer> m_CommandBuffers;
-
-    std::vector<vk::Semaphore> m_ImageAvailableSemaphores;
-    std::vector<vk::Semaphore> m_RenderFinishedSemaphores;
-
-    std::vector<vk::Fence> m_InFlightFences;
     std::vector<VkCore::Buffer> m_MatBuffers;
 
     std::vector<vk::DescriptorSet> m_MatrixDescriptorSets;
