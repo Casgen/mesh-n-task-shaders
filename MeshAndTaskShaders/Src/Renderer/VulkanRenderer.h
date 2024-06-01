@@ -7,6 +7,10 @@
 #include "Vk/Swapchain.h"
 #include "vulkan/vulkan_handles.hpp"
 
+#include "imgui.h"
+#include "backends/imgui_impl_vulkan.h"
+#include "backends/imgui_impl_glfw.h"
+
 class VulkanRenderer
 {
 
@@ -20,6 +24,10 @@ class VulkanRenderer
 
     void CreateFramebuffers(const uint32_t width, const uint32_t height);
     void CreateSwapchain(const uint32_t width, const uint32_t height);
+
+    void InitImGui(const VkCore::Window* window, const uint32_t width, const uint32_t height);
+    void ImGuiNewFrame(const uint32_t width, const uint32_t height);
+    void ImGuiRender(const vk::CommandBuffer& cmdBuffer);
 
     void DestroySwapchain();
     void DestroyFrameBuffers();
@@ -83,6 +91,13 @@ class VulkanRenderer
     vk::SurfaceKHR m_Surface = nullptr;
 
     vk::CommandPool m_CommandPool = nullptr;
+
+    VkDescriptorPool m_ImGuiDescPool = nullptr;
+
+    inline static ImGuiIO io;
+    inline static ImGui_ImplVulkanH_Window m_MainWindowData;
+
+    bool m_FrameBufferResized = false;
 
     std::vector<vk::Semaphore> m_RenderFinishedSemaphores;
     std::vector<vk::Semaphore> m_ImageAvailableSemaphores;

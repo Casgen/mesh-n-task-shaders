@@ -4,8 +4,13 @@
 #include "Vk/Services/Allocator/VmaAllocatorService.h"
 #include "Vk/Services/ServiceLocator.h"
 #include "Log/Log.h"
+#include "backends/imgui_impl_glfw.h"
+#include "backends/imgui_impl_vulkan.h"
+#include "imgui.h"
+#include "vulkan/vulkan_core.h"
 #include "vulkan/vulkan_enums.hpp"
 #include "vulkan/vulkan_structs.hpp"
+#include <cstdint>
 
 VulkanRenderer::VulkanRenderer(const std::string& title, VkCore::Window* window,
                                const std::vector<const char*>& deviceExtensions,
@@ -65,8 +70,6 @@ VulkanRenderer::VulkanRenderer(const std::string& title, VkCore::Window* window,
         instanceCreateInfo.setPNext(&debugCreateInfo);
     }
 #endif
-
-    // PFN_vkCmdDrawMeshTasksNV vkCmdDrawMeshTasksNV = vkGetDeviceProcAddr(VkDevice device, const char *pName)
 
     TRY_CATCH_BEGIN()
 
@@ -170,6 +173,140 @@ void VulkanRenderer::CreateSwapchain(const uint32_t width, const uint32_t height
     m_RenderPass = VkCore::SwapchainRenderPass(m_Swapchain);
 }
 
+void VulkanRenderer::InitImGui(const VkCore::Window* window, const uint32_t width, const uint32_t height)
+{
+    const VkFormat requestSurfaceImageFormat[] = {VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM,
+                                                  VK_FORMAT_B8G8R8_UNORM, VK_FORMAT_R8G8B8_UNORM};
+    const VkColorSpaceKHR requestSurfaceColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
+
+    // We could use the `ImGui_ImplVulkanH_CreateOrResizeWindow` function, but the problem is that it creates
+    // An entirely new render pass, swapchain, framebuffers, sync objects, etc. Convenient, but we need to have
+    // some kind of control over the creation of our resources. Therefore they are just passed into the
+    // ImGui_ImplVulkanH_Window data. Mainly, the function doesn't create a render pass with depth.
+
+    m_MainWindowData.Surface = m_Surface;
+    m_MainWindowData.Swapchain = m_Swapchain.GetVkSwapchain();
+    m_MainWindowData.SurfaceFormat = m_Swapchain.GetVkSurfaceFormat().surfaceFormat;
+    m_MainWindowData.PresentMode = static_cast<VkPresentModeKHR>(m_Swapchain.GetPresentMode());
+    m_MainWindowData.Width = width;
+    m_MainWindowData.Height = height;
+    m_MainWindowData.RenderPass = m_RenderPass.GetVkRenderPass();
+    m_MainWindowData.Frames = new ImGui_ImplVulkanH_Frame[m_FrameBuffers.size()];
+    m_MainWindowData.FrameIndex = m_CurrentFrame;
+    m_MainWindowData.SemaphoreCount = m_FrameBuffers.size();
+    m_MainWindowData.FrameSemaphores = new ImGui_ImplVulkanH_FrameSemaphores[m_FrameBuffers.size()];
+    m_MainWindowData.ImageCount = m_FrameBuffers.size();
+    m_MainWindowData.UseDynamicRendering = true;
+    m_MainWindowData.SemaphoreIndex = m_CurrentFrame;
+    m_MainWindowData.ClearEnable = false; // TODO: Check later. It might not be work properly.
+
+    for (int i = 0; i < m_FrameBuffers.size(); i++)
+    {
+        const ImGui_ImplVulkanH_Frame frame = {.CommandPool = m_CommandPool,
+                                               .CommandBuffer = m_CommandBuffers[i],
+                                               .Fence = m_InFlightFences[i],
+                                               .Backbuffer = m_Swapchain.GetImages()[i],
+                                               .BackbufferView = m_Swapchain.GetImageViews()[i],
+                                               .Framebuffer = m_FrameBuffers[i]};
+
+        const ImGui_ImplVulkanH_FrameSemaphores frameSemaphores = {
+            .ImageAcquiredSemaphore = m_ImageAvailableSemaphores[i],
+            .RenderCompleteSemaphore = m_RenderFinishedSemaphores[i]};
+
+        m_MainWindowData.Frames[i] = frame;
+        m_MainWindowData.FrameSemaphores[i] = frameSemaphores;
+    }
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;     // Enable Docking
+    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;   // Enable Multi-Viewport / Platform Windows
+
+    ImGui::StyleColorsDark();
+
+    ImGuiStyle& style = ImGui::GetStyle();
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+    {
+        style.WindowRounding = 3.0f;
+        style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+    }
+
+    VkDescriptorPoolSize poolSizes[] = {
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1},
+    };
+
+    VkDescriptorPoolCreateInfo poolInfo = {};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    poolInfo.maxSets = 1;
+    poolInfo.poolSizeCount = (uint32_t)IM_ARRAYSIZE(poolSizes);
+    poolInfo.pPoolSizes = poolSizes;
+
+    const VkResult err =
+        vkCreateDescriptorPool(*VkCore::DeviceManager::GetDevice(), &poolInfo, nullptr, &m_ImGuiDescPool);
+    VkCore::Utils::CheckVkResult(err);
+
+    ImGui_ImplGlfw_InitForVulkan(window->GetGLFWWindow(), true);
+    ImGui_ImplVulkan_InitInfo initInfo = {};
+    initInfo.Instance = m_Instance;
+    initInfo.PhysicalDevice = *VkCore::DeviceManager::GetPhysicalDevice();
+    initInfo.Device = *VkCore::DeviceManager::GetDevice();
+    initInfo.QueueFamily = VkCore::DeviceManager::GetPhysicalDevice().GetQueueFamilyIndices().m_GraphicsFamily.value();
+    initInfo.Queue = VkCore::DeviceManager::GetDevice().GetGraphicsQueue();
+    initInfo.PipelineCache = nullptr;
+    initInfo.DescriptorPool = m_ImGuiDescPool;
+    initInfo.RenderPass = m_MainWindowData.RenderPass;
+    initInfo.Subpass = 0;
+    initInfo.MinImageCount = m_FrameBuffers.size();
+    initInfo.ImageCount = m_FrameBuffers.size();
+    initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    initInfo.Allocator = nullptr;
+    initInfo.CheckVkResultFn = &VkCore::Utils::CheckVkResult;
+    ImGui_ImplVulkan_Init(&initInfo);
+}
+
+void VulkanRenderer::ImGuiNewFrame(const uint32_t width, const uint32_t height)
+{
+    if (m_FrameBufferResized)
+    {
+        if (width > 0 && height > 0)
+        {
+            ImGui_ImplVulkan_SetMinImageCount(m_FrameBuffers.size());
+            ImGui_ImplVulkanH_CreateOrResizeWindow(
+                m_Instance, *VkCore::DeviceManager::GetPhysicalDevice(), *VkCore::DeviceManager::GetDevice(),
+                &m_MainWindowData,
+                VkCore::DeviceManager::GetPhysicalDevice().GetQueueFamilyIndices().m_GraphicsFamily.value(), nullptr,
+                width, height, m_FrameBuffers.size());
+            m_MainWindowData.FrameIndex = 0;
+            m_FrameBufferResized = false;
+        }
+    }
+
+    ImGui_ImplVulkan_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+}
+
+void VulkanRenderer::ImGuiRender(const vk::CommandBuffer& cmdBuffer)
+{
+    ImGui::Render();
+    ImDrawData* drawData = ImGui::GetDrawData();
+
+    VkDevice device = *VkCore::DeviceManager::GetDevice();
+
+    ImGui_ImplVulkan_RenderDrawData(drawData, cmdBuffer);
+
+    // Update and Render additional Platform Windows
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+    {
+        ImGui::UpdatePlatformWindows();
+        ImGui::RenderPlatformWindowsDefault();
+    }
+}
+
 void VulkanRenderer::DestroySwapchain()
 {
     m_RenderPass.Destroy();
@@ -265,6 +402,10 @@ void VulkanRenderer::Shutdown()
     device.DestroyFences(m_InFlightFences);
 
     device.DestroyFrameBuffers(m_FrameBuffers);
+
+    ImGui_ImplVulkan_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
 
     m_Instance.destroySurfaceKHR(m_Surface);
 

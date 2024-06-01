@@ -36,6 +36,7 @@ void MeshApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
                                  VK_NV_MESH_SHADER_EXTENSION_NAME, VK_EXT_MESH_SHADER_EXTENSION_NAME,
                                  VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME},
                                 {});
+    m_Renderer.InitImGui(m_Window, winWidth, winHeight);
 
     vkCmdDrawMeshTasksNv =
         (PFN_vkCmdDrawMeshTasksNV)vkGetDeviceProcAddr(*VkCore::DeviceManager::GetDevice(), "vkCmdDrawMeshTasksNV");
@@ -219,12 +220,20 @@ void MeshApplication::DrawFrame()
         commandBuffer.drawIndexed(6, 1, 0, 0, 0);
     }
 
+    {
+        m_Renderer.ImGuiNewFrame(m_Window->GetWidth(), m_Window->GetHeight());
+
+        bool showDemoWindow = true;
+        ImGui::ShowDemoWindow(&showDemoWindow);
+
+        m_Renderer.ImGuiRender(commandBuffer);
+    }
+
     uint32_t endDrawResult = m_Renderer.EndDraw();
 
     if (endDrawResult == -1)
     {
         m_FramebufferResized = true;
-        LOG(Application, Verbose, "Out of date!")
         RecreateSwapchain();
         return;
     }
