@@ -28,6 +28,7 @@ class VulkanRenderer
     void InitImGui(const VkCore::Window* window, const uint32_t width, const uint32_t height);
     void ImGuiNewFrame(const uint32_t width, const uint32_t height);
     void ImGuiRender(const vk::CommandBuffer& cmdBuffer);
+    void ResizeImGui(const uint32_t width, const uint32_t height);
 
     void DestroySwapchain();
     void DestroyFrameBuffers();
@@ -94,8 +95,7 @@ class VulkanRenderer
 
     VkDescriptorPool m_ImGuiDescPool = nullptr;
 
-    inline static ImGuiIO io;
-    inline static ImGui_ImplVulkanH_Window m_MainWindowData;
+    ImGui_ImplVulkanH_Window m_MainWindowData;
 
     bool m_FrameBufferResized = false;
 

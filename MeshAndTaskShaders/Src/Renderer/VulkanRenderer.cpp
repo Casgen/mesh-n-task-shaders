@@ -219,13 +219,12 @@ void VulkanRenderer::InitImGui(const VkCore::Window* window, const uint32_t widt
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;     // Enable Docking
-    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;   // Enable Multi-Viewport / Platform Windows
-
-    ImGui::StyleColorsDark();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;    // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;     // Enable Gamepad Controls
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;        // Enable Docking
+    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;      // Enable Multi-Viewport / Platform Windows
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableSetMousePos; // Enable setting mouse position.
 
     ImGuiStyle& style = ImGui::GetStyle();
     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
@@ -249,7 +248,7 @@ void VulkanRenderer::InitImGui(const VkCore::Window* window, const uint32_t widt
         vkCreateDescriptorPool(*VkCore::DeviceManager::GetDevice(), &poolInfo, nullptr, &m_ImGuiDescPool);
     VkCore::Utils::CheckVkResult(err);
 
-    ImGui_ImplGlfw_InitForVulkan(window->GetGLFWWindow(), true);
+    ImGui_ImplGlfw_InitForVulkan(window->GetGLFWWindow(), false);
     ImGui_ImplVulkan_InitInfo initInfo = {};
     initInfo.Instance = m_Instance;
     initInfo.PhysicalDevice = *VkCore::DeviceManager::GetPhysicalDevice();
@@ -275,11 +274,7 @@ void VulkanRenderer::ImGuiNewFrame(const uint32_t width, const uint32_t height)
         if (width > 0 && height > 0)
         {
             ImGui_ImplVulkan_SetMinImageCount(m_FrameBuffers.size());
-            ImGui_ImplVulkanH_CreateOrResizeWindow(
-                m_Instance, *VkCore::DeviceManager::GetPhysicalDevice(), *VkCore::DeviceManager::GetDevice(),
-                &m_MainWindowData,
-                VkCore::DeviceManager::GetPhysicalDevice().GetQueueFamilyIndices().m_GraphicsFamily.value(), nullptr,
-                width, height, m_FrameBuffers.size());
+            ResizeImGui(width, height);
             m_MainWindowData.FrameIndex = 0;
             m_FrameBufferResized = false;
         }
@@ -288,6 +283,53 @@ void VulkanRenderer::ImGuiNewFrame(const uint32_t width, const uint32_t height)
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
+
+    // Enable docking
+    // static bool opt_fullscreen = true;
+    // static bool opt_padding = false;
+    // static ImGuiDockNodeFlags dockspace_flags = ImGuiDockNodeFlags_None;
+    //
+    // ImGuiWindowFlags window_flags = ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking;
+    // if (opt_fullscreen)
+    // {
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->WorkPos);
+    ImGui::SetNextWindowSize(viewport->WorkSize);
+    ImGui::SetNextWindowViewport(viewport->ID);
+    //     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    //     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    //     window_flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
+    //                     ImGuiWindowFlags_NoMove;
+    //     window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+    // }
+    // else
+    // {
+    //     dockspace_flags &= ~ImGuiDockNodeFlags_PassthruCentralNode;
+    // }
+    //
+    // dockspace_flags |= ImGuiDockNodeFlags_PassthruCentralNode;
+    // window_flags |= ImGuiWindowFlags_NoBackground;
+    //
+    // bool p_open = false;
+    //
+    // if (!opt_padding)
+    //     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    // ImGui::Begin("DockSpace Demo", &p_open, window_flags);
+    // if (!opt_padding)
+    //     ImGui::PopStyleVar();
+    //
+    // if (opt_fullscreen)
+    //     ImGui::PopStyleVar(2);
+    //
+    // // Submit the DockSpace
+    // ImGuiIO& io = ImGui::GetIO();
+    // if (io.ConfigFlags & ImGuiConfigFlags_DockingEnable)
+    // {
+    //     ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
+    //     ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), dockspace_flags);
+    // }
+
+    // ImGui::End();
 }
 
 void VulkanRenderer::ImGuiRender(const vk::CommandBuffer& cmdBuffer)
@@ -300,6 +342,7 @@ void VulkanRenderer::ImGuiRender(const vk::CommandBuffer& cmdBuffer)
     ImGui_ImplVulkan_RenderDrawData(drawData, cmdBuffer);
 
     // Update and Render additional Platform Windows
+    ImGuiIO& io = ImGui::GetIO();
     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
     {
         ImGui::UpdatePlatformWindows();
@@ -317,6 +360,39 @@ void VulkanRenderer::DestroyFrameBuffers()
 {
     VkCore::DeviceManager::GetDevice().DestroyFrameBuffers(m_FrameBuffers);
     m_FrameBuffers.clear();
+}
+
+void VulkanRenderer::ResizeImGui(const uint32_t width, const uint32_t height)
+{
+    m_MainWindowData.Surface = m_Surface;
+    m_MainWindowData.Swapchain = m_Swapchain.GetVkSwapchain();
+    // m_MainWindowData.SurfaceFormat = m_Swapchain.GetVkSurfaceFormat().surfaceFormat;
+    // m_MainWindowData.PresentMode = static_cast<VkPresentModeKHR>(m_Swapchain.GetPresentMode());
+    m_MainWindowData.Width = width;
+    m_MainWindowData.Height = height;
+    m_MainWindowData.RenderPass = m_RenderPass.GetVkRenderPass();
+    // m_MainWindowData.Frames = new ImGui_ImplVulkanH_Frame[m_FrameBuffers.size()];
+    // m_MainWindowData.FrameIndex = m_CurrentFrame;
+    // m_MainWindowData.SemaphoreCount = m_FrameBuffers.size();
+    // m_MainWindowData.FrameSemaphores = new ImGui_ImplVulkanH_FrameSemaphores[m_FrameBuffers.size()];
+    m_MainWindowData.ImageCount = m_FrameBuffers.size();
+    // m_MainWindowData.UseDynamicRendering = true;
+    // m_MainWindowData.SemaphoreIndex = m_CurrentFrame;
+    // m_MainWindowData.ClearEnable = false; // TODO: Check later. It might not be work properly.
+
+    for (int i = 0; i < m_FrameBuffers.size(); i++)
+    {
+        const ImGui_ImplVulkanH_Frame frame = {.CommandPool = m_CommandPool,
+                                               .CommandBuffer = m_CommandBuffers[i],
+                                               .Fence = m_InFlightFences[i],
+                                               .Backbuffer = m_Swapchain.GetImages()[i],
+                                               .BackbufferView = m_Swapchain.GetImageViews()[i],
+                                               .Framebuffer = m_FrameBuffers[i]};
+
+        m_MainWindowData.Frames[i].Backbuffer = m_Swapchain.GetImages()[i];
+        m_MainWindowData.Frames[i].BackbufferView = m_Swapchain.GetImageViews()[i];
+        m_MainWindowData.Frames[i].Framebuffer = m_FrameBuffers[i];
+    }
 }
 
 void VulkanRenderer::BeginDraw(const vk::ClearColorValue& clearValue, const uint32_t width, const uint32_t height)

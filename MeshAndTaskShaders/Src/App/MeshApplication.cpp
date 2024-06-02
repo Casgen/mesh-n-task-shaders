@@ -18,6 +18,7 @@
 #include "Vk/Vertex/VertexAttributeBuilder.h"
 #include "glm/ext/matrix_transform.hpp"
 #include "glm/ext/vector_float3.hpp"
+#include "imgui.h"
 #include "vulkan/vulkan.hpp"
 #include "vulkan/vulkan_core.h"
 #include "vulkan/vulkan_enums.hpp"
@@ -319,12 +320,13 @@ void MeshApplication::OnEvent(Event& event)
 
 bool MeshApplication::OnMousePress(MouseButtonEvent& event)
 {
-    // Later for ImGui
-    // if (m_AppWindow->GetProps().m_ImGuiIO->WantCaptureMouse)
-    // {
-    //     ImGui_ImplGlfw_MouseButtonCallback(m_AppWindow->GetGLFWWindow(),
-    //     event.GetKeyCode(), GLFW_PRESS, 0); return true;
-    // }
+    if (ImGui::GetIO().WantCaptureMouse)
+    {
+        ImGui_ImplGlfw_MouseButtonCallback(m_Window->GetGLFWWindow(), event.GetKeyCode(), GLFW_PRESS, 0);
+
+        LOG(Vulkan, Verbose, "Capturing mouse")
+        return true;
+    }
 
     switch (event.GetKeyCode())
     {
@@ -345,8 +347,11 @@ bool MeshApplication::OnMousePress(MouseButtonEvent& event)
 
 bool MeshApplication::OnMouseMoved(MouseMovedEvent& event)
 {
-    // ImGui_ImplGlfw_CursorPosCallback(m_AppWindow->GetGLFWWindow(),
-    // event.GetPos().x, event.GetPos().y);
+    if (ImGui::GetIO().WantCaptureMouse)
+    {
+        ImGui_ImplGlfw_CursorPosCallback(m_Window->GetGLFWWindow(), event.GetPos().x, event.GetPos().y);
+        return false;
+    }
 
     // LOGF(Application, Info, "Mouse last position X: %d, Y: %d",
     // m_MouseState.m_LastPosition.x,
@@ -377,12 +382,11 @@ bool MeshApplication::OnMouseMoved(MouseMovedEvent& event)
 bool MeshApplication::OnMouseRelease(MouseButtonEvent& event)
 {
 
-    // Later for ImGui
-    // if (m_AppWindow->GetProps().m_ImGuiIO->WantCaptureMouse)
-    // {
-    //     ImGui_ImplGlfw_MouseButtonCallback(m_AppWindow->GetGLFWWindow(),
-    //     event.GetKeyCode(), GLFW_RELEASE, 0); return true;
-    // }
+    if (ImGui::GetIO().WantCaptureMouse)
+    {
+        ImGui_ImplGlfw_MouseButtonCallback(m_Window->GetGLFWWindow(), event.GetKeyCode(), GLFW_RELEASE, 0);
+        return true;
+    }
 
     switch (event.GetKeyCode())
     {
