@@ -39,10 +39,13 @@ void MeshApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
                                 {});
     m_Renderer.InitImGui(m_Window, winWidth, winHeight);
 
+#ifndef VK_MESH_EXT
     vkCmdDrawMeshTasksNv =
         (PFN_vkCmdDrawMeshTasksNV)vkGetDeviceProcAddr(*VkCore::DeviceManager::GetDevice(), "vkCmdDrawMeshTasksNV");
+#else
     vkCmdDrawMeshTasksEXT =
         (PFN_vkCmdDrawMeshTasksEXT)vkGetDeviceProcAddr(*VkCore::DeviceManager::GetDevice(), "vkCmdDrawMeshTasksEXT");
+#endif
 
     m_Camera = Camera({0.f, 0.f, -2.f}, {0.f, 0.f, 0.f}, (float)m_Window->GetWidth() / m_Window->GetHeight());
 
@@ -200,7 +203,11 @@ void MeshApplication::DrawFrame()
             commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_ModelPipelineLayout, 1, 1, &set, 0,
                                              nullptr);
 
+#ifndef VK_MESH_EXT
             vkCmdDrawMeshTasksNv(&*commandBuffer, mesh.GetMeshletCount(), 0);
+#else
+            vkCmdDrawMeshTasksEXT(&*commandBuffer, mesh.GetMeshletCount(), 1, 1);
+#endif
         }
     }
 

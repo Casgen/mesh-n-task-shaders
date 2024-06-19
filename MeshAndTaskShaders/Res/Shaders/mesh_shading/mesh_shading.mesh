@@ -1,17 +1,17 @@
 #version 460
 
-#extension GL_NV_mesh_shader : require
+#extension GL_EXT_mesh_shader : require
 #extension GL_EXT_debug_printf : enable
 
-layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 layout(triangles) out;
-layout(max_vertices=64, max_primitives=42) out;
+layout(max_vertices=64, max_primitives=126) out;
 
 layout (binding = 0) uniform MatrixBuffer {
     mat4 model;
     mat4 view;
     mat4 proj;
-} matBuffer;
+} mat_buffer;
 
 struct s_vertex {
     vec3 position;
@@ -27,7 +27,7 @@ layout (std430, set = 1, binding = 0) buffer VertexBuffer {
 
 
 struct s_meshlet {
-    uint indices[126];
+    uint indices[384];
     uint vertices[64];
     uint vertex_count;
     uint index_count;
@@ -62,25 +62,34 @@ vec3 meshlet_colors[MAX_COLORS] = {
 
 void main()
 {
-    s_meshlet meshlet = meshlet_buffer.meshlets[gl_WorkGroupID.x];
+
+	s_meshlet meshlet = meshlet_buffer.meshlets[gl_WorkGroupID.x];
+
+    SetMeshOutputsEXT(meshlet.vertex_count, meshlet.index_count / 3);
 
 	if (gl_LocalInvocationIndex < meshlet.vertex_count) {
 		mat4 model_mat = rotation_mat * scale_mat;
 
-        uint vert = meshlet.vertices[gl_LocalInvocationIndex];
+        uint vertex = meshlet.vertices[gl_LocalInvocationIndex];
         
-        vec4 pos = matBuffer.proj * matBuffer.view * model_mat * vec4(vertex_buffer.vertices[vert].position, 1.0f); 
+        vec4 pos = mat_buffer.proj * mat_buffer.view * model_mat * vec4(vertex_buffer.vertices[vertex].position, 1.0f); 
 
-        gl_MeshVerticesNV[gl_LocalInvocationIndex].gl_Position = pos;
+        gl_MeshVerticesEXT[gl_LocalInvocationIndex].gl_Position = pos;
 
         o_color[gl_LocalInvocationIndex] = vec4(meshlet_colors[gl_WorkGroupID.x % MAX_COLORS],1.0f);
-        o_normal[gl_LocalInvocationIndex] = mat3(transpose(inverse(model_mat))) * vertex_buffer.vertices[vert].normal;
+        o_normal[gl_LocalInvocationIndex] = mat3(transpose(inverse(model_mat))) * vertex_buffer.vertices[vertex].normal;
         o_position[gl_LocalInvocationIndex] = pos.xyz;
 	}
 
-	
-	if (gl_LocalInvocationIndex < meshlet.index_count) {
-        gl_PrimitiveIndicesNV[gl_LocalInvocationIndex] = meshlet.indices[gl_LocalInvocationIndex];
+	uint triangle_count = meshlet.index_count / 3;
+
+	if (gl_LocalInvocationIndex < triangle_count) {
+		uint triangle_index = gl_LocalInvocationIndex * 3;
+		gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(
+			meshlet.indices[triangle_index],
+			meshlet.indices[triangle_index + 1],
+			meshlet.indices[triangle_index + 2]
+		);
 	}
 
 

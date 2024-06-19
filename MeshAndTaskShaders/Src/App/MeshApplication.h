@@ -80,8 +80,12 @@ class MeshApplication
         .cam_view_dir = glm::vec3(0.f),
     };
 
+#ifndef VK_MESH_EXT
     PFN_vkCmdDrawMeshTasksNV vkCmdDrawMeshTasksNv;
+#else
     PFN_vkCmdDrawMeshTasksEXT vkCmdDrawMeshTasksEXT;
+#endif
+
 
     VkCore::DescriptorBuilder m_DescriptorBuilder;
 

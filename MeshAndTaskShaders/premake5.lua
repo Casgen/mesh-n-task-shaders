@@ -1,79 +1,82 @@
 ---@diagnostic disable: undefined-global
 project("MeshAndTaskShaders")
-kind("ConsoleApp")
+	kind("ConsoleApp")
 
-language("C++")
-cppdialect("C++17")
+	language("C++")
+	cppdialect("C++17")
 
-architecture("x86_64")
+	architecture("x86_64")
 
-links({ "VulkanCore", "GLM", "GLFW", "assimp" })
+	links{ "VulkanCore", "GLM", "GLFW", "assimp" }
 
-local output_dir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
+	local output_dir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
 
-targetdir("../bin/" .. output_dir .. "/%{prj.name}")
-objdir("../obj/" .. output_dir .. "/%{prj.name}")
+	targetdir("../bin/" .. output_dir .. "/%{prj.name}")
+	objdir("../obj/" .. output_dir .. "/%{prj.name}")
 
-includedirs({
-	"../VulkanCore/Src",
-	"../VulkanCore/Vendor/glfw/include/",
-	"../VulkanCore/Vendor/glm/",
-	"../VulkanCore/Vendor/stb/",
-	"../VulkanCore/Vendor/vma/",
-	"../VulkanCore/Vendor/imgui/",
-})
+	includedirs{
+		"../VulkanCore/Src",
+		"../VulkanCore/Vendor/glfw/include/",
+		"../VulkanCore/Vendor/glm/",
+		"../VulkanCore/Vendor/stb/",
+		"../VulkanCore/Vendor/vma/",
+		"../VulkanCore/Vendor/imgui/",
+	}
 
-files({
-	"Src/**.cpp",
-	"Src/**.h",
-	"Src/**.hpp",
-})
+	files{
+		"Src/**.cpp",
+		"Src/**.h",
+		"Src/**.hpp",
+	}
 
-filter("configurations:Debug")
-defines({ "DEBUG" })
-symbols("on")
+	filter("configurations:Debug")
+		defines{ "DEBUG" }
+		symbols("on")
 
-filter("configurations:Release")
-defines({ "NDEBUG" })
-optimize("on")
+	filter("configurations:Release")
+		defines{ "NDEBUG" }
+		optimize("on")
 
-filter({ "system:linux" })
+	filter{ "system:linux" }
 
--- In case of using with VulkanSDK make sure that you have VULKAN_SDK environment variable set! (for ex. /home/username/Development/VulkanSDK/1.3.250.0/x86_64)
--- But on linux, if Vulkan is installed correctly, VulkanSDK is not needed.
-includedirs({
-	"$(VULKAN_SDK)/include",
-})
+		-- In case of using with VulkanSDK make sure that you have VULKAN_SDK environment variable set! (for ex. /home/username/Development/VulkanSDK/1.3.250.0/x86_64)
+		-- But on linux, if Vulkan is installed correctly, VulkanSDK is not needed.
+		includedirs{
+			"$(VULKAN_SDK)/include",
+		}
 
-libdirs({
-	"$(VULKAN_SDK)/lib",
-})
+		libdirs{
+			"$(VULKAN_SDK)/lib",
+		}
 
--- On linux, make sure that you have installed libvulkan-dev through your package manager!
-links({ "vulkan", "pthread", "shaderc_combined" })
+		-- On linux, make sure that you have installed libvulkan-dev through your package manager!
+		links{ "vulkan", "pthread", "shaderc_combined" }
 
-defines({
-	"_X11",
-	"_GLFW_VULKAN_STATIC",
-})
+		defines{
+			"_X11",
+			"_GLFW_VULKAN_STATIC",
+		}
 
-filter({ "system:windows" })
+	filter{ "system:windows" }
 
-includedirs({
-	"$(VULKAN_SDK)/Include",
-	"$(VK_SDK_PATH)/Include",
-})
+		includedirs{
+			"$(VULKAN_SDK)/Include",
+			"$(VK_SDK_PATH)/Include",
+		}
 
-libdirs({
-	"$(VULKAN_SDK)/Lib",
-	"$(VK_SDK_PATH)/Lib",
-})
+		libdirs{
+			"$(VULKAN_SDK)/Lib",
+			"$(VK_SDK_PATH)/Lib",
+		}
 
-links({ "vulkan-1", "shaderc_combined" })
+		links{ "vulkan-1", "shaderc_combined" }
 
-defines({
-	"_WIN",
-	"_GLFW_VULKAN_STATIC",
-})
+		defines{
+			"_WIN",
+			"_GLFW_VULKAN_STATIC",
+		}
 
--- On linux, make sure that you have installed libvulkan-dev through your package manager!
+	filter("options:with-vulkan")
+		defines{ "VK_MESH_EXT"}
+
+	-- On linux, make sure that you have installed libvulkan-dev through your package manager!
