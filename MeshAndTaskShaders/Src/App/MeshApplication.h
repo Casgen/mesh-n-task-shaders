@@ -10,6 +10,8 @@
 #include "Mesh/Model.h"
 #include "Model/Camera.h"
 #include "Model/MouseState.h"
+#include "Model/Structures/AABB.h"
+#include "Model/Structures/OcTree.h"
 #include "Vk/Descriptors/DescriptorBuilder.h"
 #include "vulkan/vulkan_core.h"
 #include "vulkan/vulkan_handles.hpp"
@@ -25,8 +27,11 @@ class MeshApplication
     void Loop();
     void Shutdown();
 
+	void CreateImGuiOcTreeNode(const OcTreeTriangles& ocTreeNode, const uint32_t level, const uint32_t index = 0, int id = 0);
+
     void InitializeModelPipeline();
     void InitializeAxisPipeline();
+    void InitializeAABBPipeline();
 
     void RecreateSwapchain();
 
@@ -50,6 +55,9 @@ class MeshApplication
     vk::Pipeline m_ModelPipeline;
     vk::PipelineLayout m_ModelPipelineLayout;
 
+    vk::Pipeline m_AabbPipeline;
+    vk::PipelineLayout m_AabbPipelineLayout;
+
     std::vector<VkCore::Buffer> m_MatBuffers;
 
     std::vector<vk::DescriptorSet> m_MatrixDescriptorSets;
@@ -61,6 +69,10 @@ class MeshApplication
     VkCore::Buffer m_MeshletBuffer;
     VkCore::Buffer m_VertexBuffer;
 
+    VkCore::Buffer m_AabbBuffer;
+	OcTreeTriangles m_OcTree;
+	uint32_t m_OcTreeEdgesCount = 0;
+
     VkCore::Buffer m_AxisBuffer;
     VkCore::Buffer m_AxisIndexBuffer;
 
@@ -69,6 +81,8 @@ class MeshApplication
     glm::vec2 angles = {0.f, 0.f};
 
     MeshPC mesh_pc;
+
+	AABB m_Aabb;
 
     FragmentPC fragment_pc = {
         .diffusion_color = glm::vec3(1.f),

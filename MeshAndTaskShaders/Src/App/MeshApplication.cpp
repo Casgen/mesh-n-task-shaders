@@ -1,5 +1,9 @@
 #include "MeshApplication.h"
 
+#include <cstdint>
+#include <cstdio>
+#include <limits>
+#include <memory>
 #include <stddef.h>
 #include <stdexcept>
 
@@ -8,6 +12,8 @@
 #include "Model/MatrixBuffer.h"
 #include "Model/Shaders/ShaderData.h"
 #include "Model/Shaders/ShaderLoader.h"
+#include "Model/Structures/Edge.h"
+#include "Model/Structures/OcTree.h"
 #include "Vk/Buffers/Buffer.h"
 #include "Vk/Descriptors/DescriptorBuilder.h"
 #include "Vk/Devices/DeviceManager.h"
@@ -23,6 +29,7 @@
 #include "vulkan/vulkan_core.h"
 #include "vulkan/vulkan_enums.hpp"
 #include "vulkan/vulkan_handles.hpp"
+#include "Model/Structures/AABB.h"
 #include "vulkan/vulkan_structs.hpp"
 
 void MeshApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
@@ -51,6 +58,7 @@ void MeshApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 
     InitializeModelPipeline();
     InitializeAxisPipeline();
+    InitializeAABBPipeline();
 
     Loop();
     Shutdown();
@@ -150,6 +158,41 @@ void MeshApplication::InitializeAxisPipeline()
                          .Build(m_AxisPipelineLayout);
 }
 
+void MeshApplication::InitializeAABBPipeline()
+{
+    if (m_Model == nullptr)
+    {
+        LOG_AND_THROW(Application, Fatal, "Couldn't initialize Pipeline! Model is nullptr. Probably wasn't loaded?")
+    }
+
+    m_OcTree = Mesh::OcTreeMesh(m_Model->GetMeshes().at(0), Constants::MAX_MESHLET_INDICES / 3);
+
+    std::vector<Edge> edges = OcTreeTriangles::GenerateEdges(m_OcTree);
+    m_OcTreeEdgesCount = edges.size();
+
+    m_AabbBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eVertexBuffer);
+    m_AabbBuffer.InitializeOnGpu(edges.data(), sizeof(Edge) * edges.size());
+
+    VkCore::VertexAttributeBuilder attributeBuilder{};
+    attributeBuilder.PushAttribute<float>(3);
+
+    std::vector<VkCore::ShaderData> shaderData =
+        VkCore::ShaderLoader::LoadClassicShaders("MeshAndTaskShaders/Res/Shaders/aabb");
+
+    VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice());
+
+    m_AabbPipeline = pipelineBuilder.BindShaderModules(shaderData)
+                         .BindRenderPass(m_Renderer.m_RenderPass.GetVkRenderPass())
+                         .AddViewport(glm::uvec4(0, 0, m_Window->GetWidth(), m_Window->GetHeight()))
+                         .BindVertexAttributes(attributeBuilder)
+                         .AddDisabledBlendAttachment()
+                         .AddDescriptorLayout(m_MatrixDescSetLayout)
+                         .SetPrimitiveAssembly(vk::PrimitiveTopology::eLineList)
+                         .AddDynamicState(vk::DynamicState::eScissor)
+                         .AddDynamicState(vk::DynamicState::eViewport)
+                         .Build(m_AabbPipelineLayout);
+}
+
 void MeshApplication::DrawFrame()
 {
 
@@ -229,10 +272,35 @@ void MeshApplication::DrawFrame()
     }
 
     {
+        vk::Rect2D scissor = vk::Rect2D({0, 0}, {m_Window->GetWidth(), m_Window->GetHeight()});
+        commandBuffer.setScissor(0, 1, &scissor);
+
+        vk::Viewport viewport = vk::Viewport(0, 0, m_Window->GetWidth(), m_Window->GetHeight(), 0, 1);
+        commandBuffer.setViewport(0, 1, &viewport);
+
+        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_AabbPipelineLayout, 0, 1,
+                                         &m_MatrixDescriptorSets[imageIndex], 0, nullptr);
+
+        commandBuffer.bindVertexBuffers(0, m_AabbBuffer.GetVkBuffer(), {0});
+        commandBuffer.draw(m_OcTreeEdgesCount * 2, 1, 0, 0);
+    }
+
+    {
         m_Renderer.ImGuiNewFrame(m_Window->GetWidth(), m_Window->GetHeight());
 
-        bool showDemoWindow = true;
-        ImGui::ShowDemoWindow(&showDemoWindow);
+        static bool open = true;
+
+        const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + 650, main_viewport->WorkPos.y + 20),
+                                ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(550, 680), ImGuiCond_FirstUseEver);
+
+        if (ImGui::Begin("OcTree", &open))
+        {
+            CreateImGuiOcTreeNode(m_OcTree, 0);
+
+            ImGui::End();
+        }
 
         m_Renderer.ImGuiRender(commandBuffer);
     }
@@ -245,6 +313,56 @@ void MeshApplication::DrawFrame()
         RecreateSwapchain();
         return;
     }
+}
+
+void MeshApplication::CreateImGuiOcTreeNode(const OcTreeTriangles& ocTreeNode, const uint32_t level,
+                                            const uint32_t index, int id)
+{
+
+    ImGui::PushID(id);
+    if (ImGui::TreeNode("OcTreeNode", "Level: %d, Index: %d", level, index))
+    {
+		uint32_t numOfTriangles = 0;
+        if (ocTreeNode.isDivided)
+        {
+            for (int i = 0; i < 8; i++)
+            {
+                CreateImGuiOcTreeNode(*ocTreeNode.nodes[i], level + 1, i, id++);
+				numOfTriangles += ocTreeNode.nodes[i]->triangles.size();
+            }
+        }
+
+		ImGui::Text("Num Of Triangles: %d", numOfTriangles);
+        ImGui::Text("Boundary:\n\tMinPoint: {%.4f, %.4f, %.4f},\n\tMinPoint: {%.4f, %.4f, %.4f}",
+                    ocTreeNode.boundary.minPoint.x, ocTreeNode.boundary.minPoint.y, ocTreeNode.boundary.minPoint.z,
+                    ocTreeNode.boundary.minPoint.x, ocTreeNode.boundary.minPoint.y, ocTreeNode.boundary.minPoint.z);
+
+        ImGui::PushID(id++);
+        if (ImGui::TreeNode("Triangles"))
+        {
+
+            for (uint32_t i = 0; i < ocTreeNode.triangles.size(); i++)
+            {
+                ImGui::PushID(id++);
+                if (ImGui::TreeNode("Triangle", "[%d]", i))
+                {
+                    ImGui::Text("A: {%.4f, %.4f, %.4f}\n\tB: {%.4f, %.4f, %.4f}\n\tC: {%.4f, %.4f, %.4f}\n\t",
+                                ocTreeNode.triangles[i].a.x, ocTreeNode.triangles[i].a.y, ocTreeNode.triangles[i].a.z,
+                                ocTreeNode.triangles[i].b.x, ocTreeNode.triangles[i].b.y, ocTreeNode.triangles[i].b.z,
+                                ocTreeNode.triangles[i].c.x, ocTreeNode.triangles[i].c.y, ocTreeNode.triangles[i].c.z);
+
+                    ImGui::TreePop();
+                }
+                ImGui::PopID();
+            }
+            ImGui::TreePop();
+        }
+
+        ImGui::PopID();
+        ImGui::TreePop();
+    }
+
+    ImGui::PopID();
 }
 
 void MeshApplication::Loop()
@@ -274,6 +392,9 @@ void MeshApplication::Shutdown()
     device.DestroyPipeline(m_ModelPipeline);
     device.DestroyPipelineLayout(m_ModelPipelineLayout);
 
+    device.DestroyPipeline(m_AabbPipeline);
+    device.DestroyPipelineLayout(m_AabbPipelineLayout);
+
     m_Model->Destroy();
 
     m_AxisBuffer.Destroy();
@@ -281,6 +402,8 @@ void MeshApplication::Shutdown()
 
     m_DescriptorBuilder.Clear();
     m_DescriptorBuilder.Cleanup();
+
+    m_AabbBuffer.Destroy();
 
     for (VkCore::Buffer& buffer : m_MatBuffers)
     {

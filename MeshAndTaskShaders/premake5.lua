@@ -79,4 +79,10 @@ project("MeshAndTaskShaders")
 	filter("options:with-vulkan")
 		defines{ "VK_MESH_EXT"}
 
-	-- On linux, make sure that you have installed libvulkan-dev through your package manager!
+	 -- GCC and Clang
+    filter { "action:gmake2", "architecture:x86_64" }
+        buildoptions { "-mavx" }
+
+    -- MSVC
+    filter { "action:vs*", "architecture:x86_64" }
+        buildoptions { "/arch:AVX" }
