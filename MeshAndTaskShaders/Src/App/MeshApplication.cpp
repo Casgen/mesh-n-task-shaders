@@ -7,8 +7,10 @@
 #include <stddef.h>
 #include <stdexcept>
 
+#include "Constants.h"
 #include "GLFW/glfw3.h"
 #include "Log/Log.h"
+#include "Mesh/MeshletGeneration.h"
 #include "Model/MatrixBuffer.h"
 #include "Model/Shaders/ShaderData.h"
 #include "Model/Shaders/ShaderLoader.h"
@@ -71,7 +73,7 @@ void MeshApplication::InitializeModelPipeline()
         const std::vector<VkCore::ShaderData> shaders =
             VkCore::ShaderLoader::LoadMeshShaders("MeshAndTaskShaders/Res/Shaders/mesh_shading");
 
-        m_Model = new Model("MeshAndTaskShaders/Res/Artwork/OBJs/kitten.obj");
+        m_Model = new Model("MeshAndTaskShaders/Res/Artwork/OBJs/sphere.obj");
 
         // Create Buffers
         for (int i = 0; i < m_Renderer.m_Swapchain.GetImageCount(); i++)
@@ -167,7 +169,9 @@ void MeshApplication::InitializeAABBPipeline()
 
     m_OcTree = Mesh::OcTreeMesh(m_Model->GetMeshes().at(0), Constants::MAX_MESHLET_INDICES / 3);
 
-    std::vector<Edge> edges = OcTreeTriangles::GenerateEdges(m_OcTree);
+	LOGF(Rendering, Verbose, "Num of triangles after octreeing: %d", m_OcTree.CountTriangles())
+	std::vector<Edge> edges = OcTreeTriangles::GenerateEdges(m_OcTree);
+
     m_OcTreeEdgesCount = edges.size();
 
     m_AabbBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eVertexBuffer);
@@ -333,9 +337,9 @@ void MeshApplication::CreateImGuiOcTreeNode(const OcTreeTriangles& ocTreeNode, c
         }
 
 		ImGui::Text("Num Of Triangles: %d", numOfTriangles);
-        ImGui::Text("Boundary:\n\tMinPoint: {%.4f, %.4f, %.4f},\n\tMinPoint: {%.4f, %.4f, %.4f}",
+        ImGui::Text("Boundary:\n\tMinPoint: {%.4f, %.4f, %.4f},\n\tMaxPoint: {%.4f, %.4f, %.4f}",
                     ocTreeNode.boundary.minPoint.x, ocTreeNode.boundary.minPoint.y, ocTreeNode.boundary.minPoint.z,
-                    ocTreeNode.boundary.minPoint.x, ocTreeNode.boundary.minPoint.y, ocTreeNode.boundary.minPoint.z);
+                    ocTreeNode.boundary.maxPoint.x, ocTreeNode.boundary.maxPoint.y, ocTreeNode.boundary.maxPoint.z);
 
         ImGui::PushID(id++);
         if (ImGui::TreeNode("Triangles"))

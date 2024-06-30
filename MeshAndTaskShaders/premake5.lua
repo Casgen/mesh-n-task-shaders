@@ -21,6 +21,8 @@ project("MeshAndTaskShaders")
 		"../VulkanCore/Vendor/stb/",
 		"../VulkanCore/Vendor/vma/",
 		"../VulkanCore/Vendor/imgui/",
+		"../VulkanCore/Vendor/ZMath/**.cpp",
+		"../VulkanCore/Vendor/ZMath/**.h",
 	}
 
 	files{
