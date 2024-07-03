@@ -78,9 +78,12 @@ void main()
         o_position[gl_LocalInvocationIndex] = pos.xyz;
 	}
 
+	uint triangle_count = meshlet.index_count / 3;
 	
-	if (gl_LocalInvocationIndex < meshlet.index_count) {
-        gl_PrimitiveIndicesNV[gl_LocalInvocationIndex] = meshlet.indices[gl_LocalInvocationIndex];
+	if (gl_LocalInvocationIndex < triangle_count) {
+        gl_PrimitiveIndicesNV[gl_LocalInvocationIndex * 3] = meshlet.indices[gl_LocalInvocationIndex * 3];
+        gl_PrimitiveIndicesNV[gl_LocalInvocationIndex * 3 + 1] = meshlet.indices[gl_LocalInvocationIndex * 3 + 1];
+        gl_PrimitiveIndicesNV[gl_LocalInvocationIndex * 3 + 2] = meshlet.indices[gl_LocalInvocationIndex * 3 + 2];
 	}
 
 

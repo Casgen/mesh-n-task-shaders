@@ -43,10 +43,11 @@ void MeshApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 
     m_Renderer = VulkanRenderer("Mesh Application", m_Window,
                                 {VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
-                                 VK_NV_MESH_SHADER_EXTENSION_NAME, VK_EXT_MESH_SHADER_EXTENSION_NAME,
+                                 VK_EXT_MESH_SHADER_EXTENSION_NAME,
                                  VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME},
                                 {});
     m_Renderer.InitImGui(m_Window, winWidth, winHeight);
+
 
 #ifndef VK_MESH_EXT
     vkCmdDrawMeshTasksNv =
@@ -57,6 +58,30 @@ void MeshApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 #endif
 
     m_Camera = Camera({0.f, 0.f, -2.f}, {0.f, 0.f, 0.f}, (float)m_Window->GetWidth() / m_Window->GetHeight());
+
+	// Create Uniform Buffers
+	for (int i = 0; i < m_Renderer.m_Swapchain.GetImageCount(); i++)
+	{
+		VkCore::Buffer matBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eUniformBuffer);
+		matBuffer.InitializeOnCpu(sizeof(MatrixBuffer));
+
+		m_MatBuffers.emplace_back(std::move(matBuffer));
+	}
+
+	// Mesh Descriptor Sets
+	VkCore::DescriptorBuilder descriptorBuilder(VkCore::DeviceManager::GetDevice());
+
+	for (uint32_t i = 0; i < m_Renderer.m_Swapchain.GetImageCount(); i++)
+	{
+		vk::DescriptorSet tempSet;
+
+		descriptorBuilder.BindBuffer(0, m_MatBuffers[i], vk::DescriptorType::eUniformBuffer,
+									 vk::ShaderStageFlagBits::eMeshNV | vk::ShaderStageFlagBits::eVertex);
+		descriptorBuilder.Build(tempSet, m_MatrixDescSetLayout);
+		descriptorBuilder.Clear();
+
+		m_MatrixDescriptorSets.emplace_back(tempSet);
+	}
 
     InitializeModelPipeline();
     InitializeAxisPipeline();
@@ -73,31 +98,9 @@ void MeshApplication::InitializeModelPipeline()
         const std::vector<VkCore::ShaderData> shaders =
             VkCore::ShaderLoader::LoadMeshShaders("MeshAndTaskShaders/Res/Shaders/mesh_shading");
 
-        m_Model = new Model("MeshAndTaskShaders/Res/Artwork/OBJs/sphere.obj");
+        m_Model = new Model("MeshAndTaskShaders/Res/Artwork/OBJs/kitten.obj");
 
-        // Create Buffers
-        for (int i = 0; i < m_Renderer.m_Swapchain.GetImageCount(); i++)
-        {
-            VkCore::Buffer matBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eUniformBuffer);
-            matBuffer.InitializeOnCpu(sizeof(MatrixBuffer));
 
-            m_MatBuffers.emplace_back(std::move(matBuffer));
-        }
-
-        // Mesh Descriptor Sets
-        VkCore::DescriptorBuilder descriptorBuilder(VkCore::DeviceManager::GetDevice());
-
-        for (uint32_t i = 0; i < m_Renderer.m_Swapchain.GetImageCount(); i++)
-        {
-            vk::DescriptorSet tempSet;
-
-            descriptorBuilder.BindBuffer(0, m_MatBuffers[i], vk::DescriptorType::eUniformBuffer,
-                                         vk::ShaderStageFlagBits::eMeshNV | vk::ShaderStageFlagBits::eVertex);
-            descriptorBuilder.Build(tempSet, m_MatrixDescSetLayout);
-            descriptorBuilder.Clear();
-
-            m_MatrixDescriptorSets.emplace_back(tempSet);
-        }
 
         // Pipeline
         VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice(), true);
@@ -210,6 +213,7 @@ void MeshApplication::DrawFrame()
     }
 
     m_Camera.Update();
+
 
     MatrixBuffer ubo{};
     ubo.m_Proj = m_Camera.GetProjMatrix();

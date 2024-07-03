@@ -5,18 +5,17 @@
 
 int main(int argc, char* argv[])
 {
-	Vec3f a = {1.f, 2.f, 3.f};
-	Vec3f b = {3.f, 3.f, 4.f};
+	AABB aabb1 = {};
+	AABB aabb2 = {
+		.minPoint = Vec3f(-1.f) + 0.5f,
+		.maxPoint = Vec3f(1.f) + 0.5f
+	};
 
-	float dot = a.Dot(b);
-	Vec3f cross = a.Cross(b);
+	Vec3f point = {0.5f, 0.5f, 0.5f};
 
-	std::cout << dot << std::endl;
-
-	cross.Print();
+	aabb1.Intersects(aabb2);
 
 	std::cout << ":" << sizeof(Vec3f) << std::endl;
-
 
     MeshApplication app = MeshApplication();
     app.Run(1280, 720);
