@@ -23,6 +23,7 @@ project("MeshAndTaskShaders")
 		"../VulkanCore/Vendor/imgui/",
 		"../VulkanCore/Vendor/ZMath/**.cpp",
 		"../VulkanCore/Vendor/ZMath/**.h",
+		"../VulkanCore/Vendor/meshoptimizer",
 	}
 
 	files{

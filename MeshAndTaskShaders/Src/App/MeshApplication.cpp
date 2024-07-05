@@ -41,9 +41,15 @@ void MeshApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
     m_Window = new VkCore::Window("Mesh Application", winWidth, winHeight);
     m_Window->SetEventCallback(std::bind(&MeshApplication::OnEvent, this, std::placeholders::_1));
 
+
     m_Renderer = VulkanRenderer("Mesh Application", m_Window,
                                 {VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
+
+#ifndef VK_MESH_EXT
+                                 VK_NV_MESH_SHADER_EXTENSION_NAME,
+#else
                                  VK_EXT_MESH_SHADER_EXTENSION_NAME,
+#endif
                                  VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME},
                                 {});
     m_Renderer.InitImGui(m_Window, winWidth, winHeight);
@@ -99,7 +105,6 @@ void MeshApplication::InitializeModelPipeline()
             VkCore::ShaderLoader::LoadMeshShaders("MeshAndTaskShaders/Res/Shaders/mesh_shading");
 
         m_Model = new Model("MeshAndTaskShaders/Res/Artwork/OBJs/kitten.obj");
-
 
 
         // Pipeline
