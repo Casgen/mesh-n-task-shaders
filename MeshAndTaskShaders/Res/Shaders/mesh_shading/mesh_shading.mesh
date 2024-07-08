@@ -33,6 +33,13 @@ struct s_meshlet {
     uint triangle_count;
 };
 
+struct s_meshlet_bound {
+	vec3 normal;
+	float coneAngle;
+	vec3 spherePos;
+	float sphereRadius;
+};
+
 layout (std430, set = 1, binding = 1) buffer MeshletBuffer {
      s_meshlet meshlets[];
 } meshlet_buffer;
@@ -45,9 +52,16 @@ layout (std430, set = 1, binding = 3) buffer MeshletTriangles {
      uint triangles[];
 } meshlet_triangles;
 
+layout (std430, set = 1, binding = 4) buffer MeshletBounds {
+     s_meshlet_bound bounds[];
+} meshlet_bounds;
+
 layout (push_constant, std430) uniform MeshPushConstant {
-    layout(offset = 96) mat4 rotation_mat;
+	// The offset is here due to the offset due to the preceding push constant used
+	// in the fragment shader.
+    layout(offset = 96) mat4 rotation_mat; 
     mat4 scale_mat;
+	uint meshlet_count;
 };
 
 layout (location = 0) out vec4 o_color[]; 
@@ -88,6 +102,8 @@ void main()
         o_position[i] = pos.xyz;
 	}
 
+	const mat4 t_rotation_mat = transpose(rotation_mat);
+	// debugPrintfEXT("MeshRotMat: {\n\t%1.3v4f,\n\t%1.3v4f,\n\t%1.3v4f,\n\t%1.3v4f\n}\n", t_rotation_mat[0], t_rotation_mat[1], t_rotation_mat[2], t_rotation_mat[3]);
 
 	for (uint i = gl_LocalInvocationIndex; i < meshlet.triangle_count; i += 64)
 	{
@@ -96,8 +112,6 @@ void main()
 		uint firstIndex = triangle & 255;
 		uint secondIndex = (triangle >> 8)  & 255;
 		uint thirdIndex = (triangle >> 16)  & 255;
-
-		debugPrintfEXT("wg:%d ti:%d (%d;%d;%d)\n", gl_WorkGroupID.x, i, firstIndex, secondIndex, thirdIndex);
 
 		gl_PrimitiveTriangleIndicesEXT[i] = uvec3(firstIndex, secondIndex, thirdIndex); 
 	}

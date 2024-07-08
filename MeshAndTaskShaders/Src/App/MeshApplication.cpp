@@ -1,16 +1,14 @@
 #include "MeshApplication.h"
 
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
-#include <limits>
-#include <memory>
 #include <stddef.h>
 #include <stdexcept>
 
 #include "Constants.h"
 #include "GLFW/glfw3.h"
 #include "Log/Log.h"
-#include "Mesh/MeshletGeneration.h"
 #include "Model/MatrixBuffer.h"
 #include "Model/Shaders/ShaderData.h"
 #include "Model/Shaders/ShaderLoader.h"
@@ -41,7 +39,6 @@ void MeshApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
     m_Window = new VkCore::Window("Mesh Application", winWidth, winHeight);
     m_Window->SetEventCallback(std::bind(&MeshApplication::OnEvent, this, std::placeholders::_1));
 
-
     m_Renderer = VulkanRenderer("Mesh Application", m_Window,
                                 {VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
 
@@ -54,7 +51,6 @@ void MeshApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
                                 {});
     m_Renderer.InitImGui(m_Window, winWidth, winHeight);
 
-
 #ifndef VK_MESH_EXT
     vkCmdDrawMeshTasksNv =
         (PFN_vkCmdDrawMeshTasksNV)vkGetDeviceProcAddr(*VkCore::DeviceManager::GetDevice(), "vkCmdDrawMeshTasksNV");
@@ -65,33 +61,33 @@ void MeshApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 
     m_Camera = Camera({0.f, 0.f, -2.f}, {0.f, 0.f, 0.f}, (float)m_Window->GetWidth() / m_Window->GetHeight());
 
-	// Create Uniform Buffers
-	for (int i = 0; i < m_Renderer.m_Swapchain.GetImageCount(); i++)
-	{
-		VkCore::Buffer matBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eUniformBuffer);
-		matBuffer.InitializeOnCpu(sizeof(MatrixBuffer));
+    // Create Uniform Buffers
+    for (int i = 0; i < m_Renderer.m_Swapchain.GetImageCount(); i++)
+    {
+        VkCore::Buffer matBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eUniformBuffer);
+        matBuffer.InitializeOnCpu(sizeof(MatrixBuffer));
 
-		m_MatBuffers.emplace_back(std::move(matBuffer));
-	}
+        m_MatBuffers.emplace_back(std::move(matBuffer));
+    }
 
-	// Mesh Descriptor Sets
-	VkCore::DescriptorBuilder descriptorBuilder(VkCore::DeviceManager::GetDevice());
+    // Mesh Descriptor Sets
+    VkCore::DescriptorBuilder descriptorBuilder(VkCore::DeviceManager::GetDevice());
 
-	for (uint32_t i = 0; i < m_Renderer.m_Swapchain.GetImageCount(); i++)
-	{
-		vk::DescriptorSet tempSet;
+    for (uint32_t i = 0; i < m_Renderer.m_Swapchain.GetImageCount(); i++)
+    {
+        vk::DescriptorSet tempSet;
 
-		descriptorBuilder.BindBuffer(0, m_MatBuffers[i], vk::DescriptorType::eUniformBuffer,
-									 vk::ShaderStageFlagBits::eMeshNV | vk::ShaderStageFlagBits::eVertex);
-		descriptorBuilder.Build(tempSet, m_MatrixDescSetLayout);
-		descriptorBuilder.Clear();
+        descriptorBuilder.BindBuffer(0, m_MatBuffers[i], vk::DescriptorType::eUniformBuffer,
+                                     vk::ShaderStageFlagBits::eMeshNV | vk::ShaderStageFlagBits::eVertex);
+        descriptorBuilder.Build(tempSet, m_MatrixDescSetLayout);
+        descriptorBuilder.Clear();
 
-		m_MatrixDescriptorSets.emplace_back(tempSet);
-	}
+        m_MatrixDescriptorSets.emplace_back(tempSet);
+    }
 
     InitializeModelPipeline();
     InitializeAxisPipeline();
-    InitializeAABBPipeline();
+    InitializeNormalsPipeline();
 
     Loop();
     Shutdown();
@@ -99,33 +95,31 @@ void MeshApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 
 void MeshApplication::InitializeModelPipeline()
 {
-    {
 
-        const std::vector<VkCore::ShaderData> shaders =
-            VkCore::ShaderLoader::LoadMeshShaders("MeshAndTaskShaders/Res/Shaders/mesh_shading");
+    const std::vector<VkCore::ShaderData> shaders =
+        VkCore::ShaderLoader::LoadMeshShaders("MeshAndTaskShaders/Res/Shaders/mesh_shading");
 
-        m_Model = new Model("MeshAndTaskShaders/Res/Artwork/OBJs/kitten.obj");
+    m_Model = new Model("MeshAndTaskShaders/Res/Artwork/OBJs/plane.obj");
+
+    // Pipeline
+    VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice(), true);
 
 
-        // Pipeline
-        VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice(), true);
-
-        m_ModelPipeline = pipelineBuilder.BindShaderModules(shaders)
-                              .BindRenderPass(m_Renderer.m_RenderPass.GetVkRenderPass())
-                              .EnableDepthTest()
-                              .AddViewport(glm::uvec4(0, 0, m_Window->GetWidth(), m_Window->GetHeight()))
-                              .FrontFaceDirection(vk::FrontFace::eClockwise)
-                              .SetCullMode(vk::CullModeFlagBits::eBack)
-                              .AddDisabledBlendAttachment()
-                              .AddDescriptorLayout(m_MatrixDescSetLayout)
-                              .AddDescriptorLayout(m_Model->GetMeshes()[0].GetDescriptorSetLayout())
-                              .AddPushConstantRange<FragmentPC>(vk::ShaderStageFlagBits::eFragment)
-                              .AddPushConstantRange<MeshPC>(vk::ShaderStageFlagBits::eMeshNV, sizeof(FragmentPC))
-                              .SetPrimitiveAssembly(vk::PrimitiveTopology::eTriangleList)
-                              .AddDynamicState(vk::DynamicState::eScissor)
-                              .AddDynamicState(vk::DynamicState::eViewport)
-                              .Build(m_ModelPipelineLayout);
-    }
+    m_ModelPipeline = pipelineBuilder.BindShaderModules(shaders)
+                          .BindRenderPass(m_Renderer.m_RenderPass.GetVkRenderPass())
+                          .EnableDepthTest()
+                          .AddViewport(glm::uvec4(0, 0, m_Window->GetWidth(), m_Window->GetHeight()))
+                          .FrontFaceDirection(vk::FrontFace::eClockwise)
+                          .SetCullMode(vk::CullModeFlagBits::eBack)
+                          .AddDisabledBlendAttachment()
+                          .AddDescriptorLayout(m_MatrixDescSetLayout)
+                          .AddDescriptorLayout(m_Model->GetMeshes()[0].GetDescriptorSetLayout())
+                          .AddPushConstantRange<FragmentPC>(vk::ShaderStageFlagBits::eFragment)
+                          .AddPushConstantRange<MeshPC>(vk::ShaderStageFlagBits::eMeshNV, sizeof(FragmentPC))
+                          .SetPrimitiveAssembly(vk::PrimitiveTopology::eTriangleList)
+                          .AddDynamicState(vk::DynamicState::eScissor)
+                          .AddDynamicState(vk::DynamicState::eViewport)
+                          .Build(m_ModelPipelineLayout);
 }
 
 void MeshApplication::InitializeAxisPipeline()
@@ -168,41 +162,28 @@ void MeshApplication::InitializeAxisPipeline()
                          .Build(m_AxisPipelineLayout);
 }
 
-void MeshApplication::InitializeAABBPipeline()
+void MeshApplication::InitializeNormalsPipeline()
 {
-    if (m_Model == nullptr)
-    {
-        LOG_AND_THROW(Application, Fatal, "Couldn't initialize Pipeline! Model is nullptr. Probably wasn't loaded?")
-    }
-
-    m_OcTree = Mesh::OcTreeMesh(m_Model->GetMeshes().at(0), Constants::MAX_MESHLET_INDICES / 3);
-
-	LOGF(Rendering, Verbose, "Num of triangles after octreeing: %d", m_OcTree.CountTriangles())
-	std::vector<Edge> edges = OcTreeTriangles::GenerateEdges(m_OcTree);
-
-    m_OcTreeEdgesCount = edges.size();
-
-    m_AabbBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eVertexBuffer);
-    m_AabbBuffer.InitializeOnGpu(edges.data(), sizeof(Edge) * edges.size());
-
-    VkCore::VertexAttributeBuilder attributeBuilder{};
-    attributeBuilder.PushAttribute<float>(3);
+    assert(m_Model != nullptr);
+    assert(m_Model->GetMeshes()[0].GetDescriptorSetLayout() != nullptr);
 
     std::vector<VkCore::ShaderData> shaderData =
-        VkCore::ShaderLoader::LoadClassicShaders("MeshAndTaskShaders/Res/Shaders/aabb");
+        VkCore::ShaderLoader::LoadMeshShaders("MeshAndTaskShaders/Res/Shaders/normals");
 
-    VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice());
+    VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice(), true);
 
-    m_AabbPipeline = pipelineBuilder.BindShaderModules(shaderData)
-                         .BindRenderPass(m_Renderer.m_RenderPass.GetVkRenderPass())
-                         .AddViewport(glm::uvec4(0, 0, m_Window->GetWidth(), m_Window->GetHeight()))
-                         .BindVertexAttributes(attributeBuilder)
-                         .AddDisabledBlendAttachment()
-                         .AddDescriptorLayout(m_MatrixDescSetLayout)
-                         .SetPrimitiveAssembly(vk::PrimitiveTopology::eLineList)
-                         .AddDynamicState(vk::DynamicState::eScissor)
-                         .AddDynamicState(vk::DynamicState::eViewport)
-                         .Build(m_AabbPipelineLayout);
+    m_NormalsPipeline = pipelineBuilder.BindShaderModules(shaderData)
+                            .EnableDepthTest()
+                            .BindRenderPass(m_Renderer.m_RenderPass.GetVkRenderPass())
+                            .AddViewport(glm::uvec4(0, 0, m_Window->GetWidth(), m_Window->GetHeight()))
+                            .AddDisabledBlendAttachment()
+                            .AddPushConstantRange<MeshPC>(vk::ShaderStageFlagBits::eMeshEXT)
+                            .AddDescriptorLayout(m_MatrixDescSetLayout)
+                            .AddDescriptorLayout(m_Model->GetMeshes()[0].GetDescriptorSetLayout())
+                            .SetPrimitiveAssembly(vk::PrimitiveTopology::eLineList)
+                            .AddDynamicState(vk::DynamicState::eScissor)
+                            .AddDynamicState(vk::DynamicState::eViewport)
+                            .Build(m_NormalsPipelineLayout);
 }
 
 void MeshApplication::DrawFrame()
@@ -218,7 +199,6 @@ void MeshApplication::DrawFrame()
     }
 
     m_Camera.Update();
-
 
     MatrixBuffer ubo{};
     ubo.m_Proj = m_Camera.GetProjMatrix();
@@ -248,13 +228,16 @@ void MeshApplication::DrawFrame()
         commandBuffer.pushConstants(m_ModelPipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, sizeof(FragmentPC),
                                     &fragment_pc);
 
-        commandBuffer.pushConstants(m_ModelPipelineLayout, vk::ShaderStageFlagBits::eMeshNV, sizeof(FragmentPC),
-                                    sizeof(MeshPC), &mesh_pc);
 
         for (const Mesh& mesh : m_Model->GetMeshes())
         {
             const vk::DescriptorSetLayout layout = mesh.GetDescriptorSetLayout();
             const vk::DescriptorSet set = mesh.GetDescriptorSet();
+
+			mesh_pc.meshlet_count = mesh.GetMeshletCount();
+
+			commandBuffer.pushConstants(m_ModelPipelineLayout, vk::ShaderStageFlagBits::eMeshNV, sizeof(FragmentPC),
+										sizeof(MeshPC), &mesh_pc);
 
             commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_ModelPipelineLayout, 1, 1, &set, 0,
                                              nullptr);
@@ -290,12 +273,30 @@ void MeshApplication::DrawFrame()
 
         vk::Viewport viewport = vk::Viewport(0, 0, m_Window->GetWidth(), m_Window->GetHeight(), 0, 1);
         commandBuffer.setViewport(0, 1, &viewport);
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_NormalsPipeline);
 
-        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_AabbPipelineLayout, 0, 1,
+        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_NormalsPipelineLayout, 0, 1,
                                          &m_MatrixDescriptorSets[imageIndex], 0, nullptr);
 
-        commandBuffer.bindVertexBuffers(0, m_AabbBuffer.GetVkBuffer(), {0});
-        commandBuffer.draw(m_OcTreeEdgesCount * 2, 1, 0, 0);
+        for (const Mesh& mesh : m_Model->GetMeshes())
+        {
+            const vk::DescriptorSetLayout layout = mesh.GetDescriptorSetLayout();
+            const vk::DescriptorSet set = mesh.GetDescriptorSet();
+
+            commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_NormalsPipelineLayout, 1, 1, &set, 0,
+                                             nullptr);
+
+			commandBuffer.pushConstants(m_NormalsPipelineLayout, vk::ShaderStageFlagBits::eMeshEXT, 0,
+										sizeof(MeshPC), &mesh_pc);
+
+            const uint32_t workgroupSize = static_cast<uint32_t>(ceil((float)mesh.GetMeshletCount() / 32.0));
+
+#ifndef VK_MESH_EXT
+            vkCmdDrawMeshTasksNv(&*commandBuffer, workgroupSize, 0);
+#else
+            vkCmdDrawMeshTasksEXT(&*commandBuffer, workgroupSize, 1, 1);
+#endif
+        }
     }
 
     {
@@ -335,17 +336,17 @@ void MeshApplication::CreateImGuiOcTreeNode(const OcTreeTriangles& ocTreeNode, c
     ImGui::PushID(id);
     if (ImGui::TreeNode("OcTreeNode", "Level: %d, Index: %d", level, index))
     {
-		uint32_t numOfTriangles = 0;
+        uint32_t numOfTriangles = 0;
         if (ocTreeNode.isDivided)
         {
             for (int i = 0; i < 8; i++)
             {
                 CreateImGuiOcTreeNode(*ocTreeNode.nodes[i], level + 1, i, id++);
-				numOfTriangles += ocTreeNode.nodes[i]->triangles.size();
+                numOfTriangles += ocTreeNode.nodes[i]->triangles.size();
             }
         }
 
-		ImGui::Text("Num Of Triangles: %d", numOfTriangles);
+        ImGui::Text("Num Of Triangles: %d", numOfTriangles);
         ImGui::Text("Boundary:\n\tMinPoint: {%.4f, %.4f, %.4f},\n\tMaxPoint: {%.4f, %.4f, %.4f}",
                     ocTreeNode.boundary.minPoint.x, ocTreeNode.boundary.minPoint.y, ocTreeNode.boundary.minPoint.z,
                     ocTreeNode.boundary.maxPoint.x, ocTreeNode.boundary.maxPoint.y, ocTreeNode.boundary.maxPoint.z);

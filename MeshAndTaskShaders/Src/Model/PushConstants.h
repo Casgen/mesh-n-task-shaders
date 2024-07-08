@@ -17,4 +17,5 @@ struct FragmentPC {
 struct MeshPC {
     glm::mat4 rotation_mat = glm::identity<glm::mat4>();
     glm::mat4 scale_mat = glm::identity<glm::mat4>();
+	uint32_t meshlet_count = 0;
 };
