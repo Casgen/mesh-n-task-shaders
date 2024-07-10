@@ -7,11 +7,22 @@ layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 layout(triangles) out;
 layout(max_vertices=64, max_primitives=126) out;
 
-layout (binding = 0) uniform MatrixBuffer {
-    mat4 model;
-    mat4 view;
-    mat4 proj;
-} mat_buffer;
+struct SharedData
+{
+	uint meshlet_indices[64];
+};
+
+struct Frustum {
+	vec3 left;
+	vec3 right;
+	vec3 top;
+	vec3 bottom;
+	vec3 front;
+	vec3 back;
+	vec3 pointSides;
+	vec3 pointFront;
+	vec3 pointBack;
+};
 
 struct s_vertex {
     vec3 position;
@@ -20,11 +31,6 @@ struct s_vertex {
     vec3 bitagent;
     vec2 texCoords;
 };
-
-layout (std430, set = 1, binding = 0) buffer VertexBuffer {
-    s_vertex vertices[];
-} vertex_buffer;
-
 
 struct s_meshlet {
     uint vertex_offset;
@@ -40,6 +46,17 @@ struct s_meshlet_bound {
 	float sphereRadius;
 };
 
+layout (binding = 0) uniform MatrixBuffer {
+    mat4 model;
+    mat4 view;
+    mat4 proj;
+	Frustum frustum;
+} mat_buffer;
+
+layout (std430, set = 1, binding = 0) buffer VertexBuffer {
+    s_vertex vertices[];
+} vertex_buffer;
+
 layout (std430, set = 1, binding = 1) buffer MeshletBuffer {
      s_meshlet meshlets[];
 } meshlet_buffer;
@@ -52,10 +69,6 @@ layout (std430, set = 1, binding = 3) buffer MeshletTriangles {
      uint triangles[];
 } meshlet_triangles;
 
-layout (std430, set = 1, binding = 4) buffer MeshletBounds {
-     s_meshlet_bound bounds[];
-} meshlet_bounds;
-
 layout (push_constant, std430) uniform MeshPushConstant {
 	// The offset is here due to the offset due to the preceding push constant used
 	// in the fragment shader.
@@ -63,6 +76,8 @@ layout (push_constant, std430) uniform MeshPushConstant {
     mat4 scale_mat;
 	uint meshlet_count;
 };
+
+taskPayloadSharedEXT SharedData payload;
 
 layout (location = 0) out vec4 o_color[]; 
 layout (location = 1) out vec3 o_normal[]; 
@@ -84,7 +99,10 @@ vec3 meshlet_colors[MAX_COLORS] = {
 
 void main()
 {
-	s_meshlet meshlet = meshlet_buffer.meshlets[gl_WorkGroupID.x];
+
+	uint index = payload.meshlet_indices[gl_WorkGroupID.x];
+
+	s_meshlet meshlet = meshlet_buffer.meshlets[index];
 
     SetMeshOutputsEXT(meshlet.vertex_count, meshlet.triangle_count);
 
@@ -103,7 +121,6 @@ void main()
 	}
 
 	const mat4 t_rotation_mat = transpose(rotation_mat);
-	// debugPrintfEXT("MeshRotMat: {\n\t%1.3v4f,\n\t%1.3v4f,\n\t%1.3v4f,\n\t%1.3v4f\n}\n", t_rotation_mat[0], t_rotation_mat[1], t_rotation_mat[2], t_rotation_mat[3]);
 
 	for (uint i = gl_LocalInvocationIndex; i < meshlet.triangle_count; i += 64)
 	{

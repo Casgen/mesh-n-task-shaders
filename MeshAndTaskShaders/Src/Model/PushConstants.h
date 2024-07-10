@@ -2,6 +2,7 @@
 
 #include "glm/ext/matrix_transform.hpp"
 #include "glm/mat4x4.hpp"
+#include "Model/Camera.h"
 #include "glm/vec3.hpp"
 
 struct FragmentPC {
@@ -18,4 +19,8 @@ struct MeshPC {
     glm::mat4 rotation_mat = glm::identity<glm::mat4>();
     glm::mat4 scale_mat = glm::identity<glm::mat4>();
 	uint32_t meshlet_count = 0;
+};
+
+struct FrustumPC {
+	Frustum frustum;
 };

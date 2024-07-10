@@ -3,12 +3,14 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <iostream>
 #include <stddef.h>
 #include <stdexcept>
 
 #include "Constants.h"
 #include "GLFW/glfw3.h"
 #include "Log/Log.h"
+#include "Model/Camera.h"
 #include "Model/MatrixBuffer.h"
 #include "Model/Shaders/ShaderData.h"
 #include "Model/Shaders/ShaderLoader.h"
@@ -35,6 +37,8 @@
 void MeshApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 {
     Logger::SetSeverityFilter(ESeverity::Verbose);
+
+    std::cout << sizeof(Frustum) << std::endl;
 
     m_Window = new VkCore::Window("Mesh Application", winWidth, winHeight);
     m_Window->SetEventCallback(std::bind(&MeshApplication::OnEvent, this, std::placeholders::_1));
@@ -78,7 +82,7 @@ void MeshApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
         vk::DescriptorSet tempSet;
 
         descriptorBuilder.BindBuffer(0, m_MatBuffers[i], vk::DescriptorType::eUniformBuffer,
-                                     vk::ShaderStageFlagBits::eMeshNV | vk::ShaderStageFlagBits::eVertex);
+                                     vk::ShaderStageFlagBits::eMeshNV | vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eTaskEXT);
         descriptorBuilder.Build(tempSet, m_MatrixDescSetLayout);
         descriptorBuilder.Clear();
 
@@ -103,7 +107,6 @@ void MeshApplication::InitializeModelPipeline()
 
     // Pipeline
     VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice(), true);
-
 
     m_ModelPipeline = pipelineBuilder.BindShaderModules(shaders)
                           .BindRenderPass(m_Renderer.m_RenderPass.GetVkRenderPass())
@@ -199,10 +202,12 @@ void MeshApplication::DrawFrame()
     }
 
     m_Camera.Update();
+    Frustum frustum = m_Camera.CalculateFrustumNormals();
 
     MatrixBuffer ubo{};
     ubo.m_Proj = m_Camera.GetProjMatrix();
     ubo.m_View = m_Camera.GetViewMatrix();
+    ubo.frustum = m_Camera.CalculateFrustumNormals();
 
     fragment_pc.cam_pos = m_Camera.GetPosition();
     fragment_pc.cam_view_dir = m_Camera.GetViewDirection();
@@ -228,16 +233,16 @@ void MeshApplication::DrawFrame()
         commandBuffer.pushConstants(m_ModelPipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, sizeof(FragmentPC),
                                     &fragment_pc);
 
+        commandBuffer.pushConstants(m_ModelPipelineLayout,
+                                    vk::ShaderStageFlagBits::eMeshNV | vk::ShaderStageFlagBits ::eTaskEXT,
+                                    sizeof(FragmentPC), sizeof(MeshPC), &mesh_pc);
 
         for (const Mesh& mesh : m_Model->GetMeshes())
         {
             const vk::DescriptorSetLayout layout = mesh.GetDescriptorSetLayout();
             const vk::DescriptorSet set = mesh.GetDescriptorSet();
 
-			mesh_pc.meshlet_count = mesh.GetMeshletCount();
-
-			commandBuffer.pushConstants(m_ModelPipelineLayout, vk::ShaderStageFlagBits::eMeshNV, sizeof(FragmentPC),
-										sizeof(MeshPC), &mesh_pc);
+            mesh_pc.meshlet_count = mesh.GetMeshletCount();
 
             commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_ModelPipelineLayout, 1, 1, &set, 0,
                                              nullptr);
@@ -245,7 +250,7 @@ void MeshApplication::DrawFrame()
 #ifndef VK_MESH_EXT
             vkCmdDrawMeshTasksNv(&*commandBuffer, mesh.GetMeshletCount(), 0);
 #else
-            vkCmdDrawMeshTasksEXT(&*commandBuffer, mesh.GetMeshletCount(), 1, 1);
+            vkCmdDrawMeshTasksEXT(&*commandBuffer, (mesh.GetMeshletCount() / 64) + 1, 1, 1);
 #endif
         }
     }
@@ -286,8 +291,8 @@ void MeshApplication::DrawFrame()
             commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_NormalsPipelineLayout, 1, 1, &set, 0,
                                              nullptr);
 
-			commandBuffer.pushConstants(m_NormalsPipelineLayout, vk::ShaderStageFlagBits::eMeshEXT, 0,
-										sizeof(MeshPC), &mesh_pc);
+            commandBuffer.pushConstants(m_NormalsPipelineLayout, vk::ShaderStageFlagBits::eMeshEXT, 0, sizeof(MeshPC),
+                                        &mesh_pc);
 
             const uint32_t workgroupSize = static_cast<uint32_t>(ceil((float)mesh.GetMeshletCount() / 32.0));
 
@@ -299,25 +304,25 @@ void MeshApplication::DrawFrame()
         }
     }
 
-    {
-        m_Renderer.ImGuiNewFrame(m_Window->GetWidth(), m_Window->GetHeight());
-
-        static bool open = true;
-
-        const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
-        ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + 650, main_viewport->WorkPos.y + 20),
-                                ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(ImVec2(550, 680), ImGuiCond_FirstUseEver);
-
-        if (ImGui::Begin("OcTree", &open))
-        {
-            CreateImGuiOcTreeNode(m_OcTree, 0);
-
-            ImGui::End();
-        }
-
-        m_Renderer.ImGuiRender(commandBuffer);
-    }
+    // {
+    //     m_Renderer.ImGuiNewFrame(m_Window->GetWidth(), m_Window->GetHeight());
+    //
+    //     static bool open = true;
+    //
+    //     const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
+    //     ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + 650, main_viewport->WorkPos.y + 20),
+    //                             ImGuiCond_FirstUseEver);
+    //     ImGui::SetNextWindowSize(ImVec2(550, 680), ImGuiCond_FirstUseEver);
+    //
+    //     if (ImGui::Begin("OcTree", &open))
+    //     {
+    //         CreateImGuiOcTreeNode(m_OcTree, 0);
+    //
+    //         ImGui::End();
+    //     }
+    //
+    //     m_Renderer.ImGuiRender(commandBuffer);
+    // }
 
     uint32_t endDrawResult = m_Renderer.EndDraw();
 
