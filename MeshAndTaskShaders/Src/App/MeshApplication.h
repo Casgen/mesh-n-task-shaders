@@ -31,7 +31,6 @@ class MeshApplication
 
     void InitializeModelPipeline();
     void InitializeAxisPipeline();
-    void InitializeNormalsPipeline();
 
     void RecreateSwapchain();
 
@@ -57,9 +56,6 @@ class MeshApplication
 
     vk::Pipeline m_AabbPipeline;
     vk::PipelineLayout m_AabbPipelineLayout;
-
-	vk::Pipeline m_NormalsPipeline;
-	vk::PipelineLayout m_NormalsPipelineLayout;
 
     std::vector<VkCore::Buffer> m_MatBuffers;
 

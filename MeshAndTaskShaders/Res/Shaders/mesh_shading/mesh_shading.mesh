@@ -106,40 +106,48 @@ void main()
 
 	SetMeshOutputsEXT(meshlet.vertex_count, meshlet.triangle_count);
 
-	for (uint i = gl_LocalInvocationIndex; i < meshlet.vertex_count; i += 64) {
-		mat4 model_mat = rotation_mat * scale_mat;
+	mat4 model_mat = rotation_mat * scale_mat;
 
-		uint vertex = meshlet_vertices.vertices[meshlet.vertex_offset + i];
-		
-		vec4 pos = mat_buffer.proj * mat_buffer.view * model_mat * vec4(vertex_buffer.vertices[vertex].position, 1.0f); 
+	uint vertex = meshlet_vertices.vertices[meshlet.vertex_offset + gl_LocalInvocationIndex];
+	
+	vec4 pos = mat_buffer.proj * mat_buffer.view * model_mat * vec4(vertex_buffer.vertices[vertex].position, 1.0f); 
 
-		gl_MeshVerticesEXT[i].gl_Position = pos;
+	gl_MeshVerticesEXT[gl_LocalInvocationIndex].gl_Position = pos;
 
-		o_color[i] = vec4(meshlet_colors[gl_WorkGroupID.x % MAX_COLORS],1.0f);
-		o_normal[i] = mat3(transpose(inverse(model_mat))) * vertex_buffer.vertices[vertex].normal;
-		o_position[i] = pos.xyz;
-	}
+	o_color[gl_LocalInvocationIndex] = vec4(meshlet_colors[gl_WorkGroupID.x % MAX_COLORS],1.0f);
+	o_normal[gl_LocalInvocationIndex] = mat3(transpose(inverse(model_mat))) * vertex_buffer.vertices[vertex].normal;
+	o_position[gl_LocalInvocationIndex] = pos.xyz;
 
-	const mat4 t_rotation_mat = transpose(rotation_mat);
-
-	for (uint i = gl_LocalInvocationIndex; i < meshlet.triangle_count; i += 64)
-	{
-		uint triangle = meshlet_triangles.triangles[meshlet.triangle_offset + i];
-
-		uint firstIndex = triangle & 255;
-		uint secondIndex = (triangle >> 8)  & 255;
-		uint thirdIndex = (triangle >> 16)  & 255;
-
-		gl_PrimitiveTriangleIndicesEXT[i] = uvec3(firstIndex, secondIndex, thirdIndex); 
-	}
 
 	// for (uint i = gl_LocalInvocationIndex; i < meshlet.triangle_count; i += 64)
 	// {
-	// 	uint firstIndex = meshlet_triangles.triangles[(meshlet.triangle_offset + i * 3)];
-	// 	uint secondIndex = meshlet_triangles.triangles[(meshlet.triangle_offset + i * 3) + 1];
-	// 	uint thirdIndex = meshlet_triangles.triangles[(meshlet.triangle_offset + i * 3) + 2];
+	// 	uint triangle = meshlet_triangles.triangles[meshlet.triangle_offset + i];
+
+	// 	uint firstIndex = triangle & 0xFF;
+	// 	uint secondIndex = (triangle >> 8) & 0xFF;
+	// 	uint thirdIndex = (triangle >> 16) & 0xFF;
 
 	// 	gl_PrimitiveTriangleIndicesEXT[i] = uvec3(firstIndex, secondIndex, thirdIndex); 
 	// }
+
+	for (uint i = gl_LocalInvocationIndex; i < meshlet.triangle_count; i += 64)
+	{
+
+		uint firstIndex = meshlet_triangles.triangles[(meshlet.triangle_offset + i * 3)];
+		uint secondIndex = meshlet_triangles.triangles[(meshlet.triangle_offset + i * 3) + 1];
+		uint thirdIndex = meshlet_triangles.triangles[(meshlet.triangle_offset + i * 3) + 2];
+
+		if (firstIndex > 63) {
+			debugPrintfEXT("Index: %v4f\n", firstIndex);
+		}
+		if (secondIndex > 63) {
+			debugPrintfEXT("Index: %v4f\n", secondIndex);
+		}
+		if (thirdIndex > 63) {
+			debugPrintfEXT("Index: %v4f\n", thirdIndex);
+		}
+
+		gl_PrimitiveTriangleIndicesEXT[i] = uvec3(firstIndex, secondIndex, thirdIndex); 
+	}
 
 }

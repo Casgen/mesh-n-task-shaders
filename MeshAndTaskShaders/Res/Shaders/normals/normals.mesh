@@ -68,38 +68,38 @@ layout (location = 0) out vec4 o_color[];
 
 void main() {
 
-	const uint offset = gl_WorkGroupID.x * gl_WorkGroupSize.x;
-	const uint max_offset = min(meshlet_count, offset + gl_WorkGroupSize.x);
+	// const uint offset = gl_WorkGroupID.x * gl_WorkGroupSize.x;
+	// const uint max_offset = min(meshlet_count, offset + gl_WorkGroupSize.x);
 
-	const uint i = offset + gl_LocalInvocationIndex;
+	// const uint i = offset + gl_LocalInvocationIndex;
 
-	if (i >= (max_offset)) {
-		SetMeshOutputsEXT(0, 0);
-		return;
-	}
+	// if (i >= (max_offset)) {
+	// 	SetMeshOutputsEXT(0, 0);
+	// 	return;
+	// }
 
-	const uint range = max_offset - offset;
+	// const uint range = max_offset - offset;
 
-	SetMeshOutputsEXT(range * 2, range);
+	// SetMeshOutputsEXT(range * 2, range);
 
-	const s_meshlet_bounds bound = meshlet_bounds.bounds[i];
+	// const s_meshlet_bounds bound = meshlet_bounds.bounds[i];
 
-	const mat4 model_mat = mat_buffer.proj * mat_buffer.view * rotation_mat * scale_mat;
+	// const mat4 model_mat = mat_buffer.proj * mat_buffer.view * rotation_mat * scale_mat;
 
-	const vec3 position = bound.normal_pos;
-	const vec3 tip = bound.normal_pos + bound.normal;
+	// const vec3 position = bound.normal_pos;
+	// const vec3 tip = bound.normal_pos + bound.normal;
 
-	const uint v_i = i * 2;
+	// const uint v_i = i * 2;
 
-	const vec4 t_position = model_mat * vec4(position, 1.0f);
-	const vec4 t_tip = model_mat * vec4(tip, 1.0f);
+	// const vec4 t_position = model_mat * vec4(position, 1.0f);
+	// const vec4 t_tip = model_mat * vec4(tip, 1.0f);
 
-	gl_MeshVerticesEXT[v_i].gl_Position = t_position; 
-	gl_MeshVerticesEXT[v_i + 1].gl_Position = t_tip; 
+	// gl_MeshVerticesEXT[v_i].gl_Position = t_position; 
+	// gl_MeshVerticesEXT[v_i + 1].gl_Position = t_tip; 
 
-	o_color[v_i] = vec4(1.f, 0.f, 0.f, 1.f);
-	o_color[v_i + 1] = vec4(1.f, 1.f, 0.f, 1.f);
+	// o_color[v_i] = vec4(1.f, 0.f, 0.f, 1.f);
+	// o_color[v_i + 1] = vec4(1.f, 1.f, 0.f, 1.f);
 
-	gl_PrimitiveLineIndicesEXT[i] = uvec2(v_i, v_i + 1);
+	// gl_PrimitiveLineIndicesEXT[i] = uvec2(v_i, v_i + 1);
 
 }

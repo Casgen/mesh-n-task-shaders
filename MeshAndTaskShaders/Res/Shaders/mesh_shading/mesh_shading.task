@@ -102,7 +102,6 @@ void main()
 	if (gl_LocalInvocationIndex == 0) {
 		uint offset = 64 * (gl_WorkGroupID.x + 1);
 		uint min_offset = 64 * gl_WorkGroupID.x;
-		
 
 		uint valid_tasks = min(offset - min_offset, meshlet_count - min_offset);
 
