@@ -33,7 +33,6 @@ struct s_meshlet_bounds {
 	float cone_angle;
 	vec3 sphere_pos;
 	float sphere_radius;
-	vec3 normal_pos;
 };
 
 layout (std430, set = 1, binding = 0) buffer VertexBuffer {

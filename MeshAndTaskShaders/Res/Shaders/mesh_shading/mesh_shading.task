@@ -2,13 +2,15 @@
 
 #extension GL_EXT_mesh_shader : require
 #extension GL_EXT_debug_printf : enable
+#extension GL_KHR_shader_subgroup_ballot : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
 
-layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
 
 
 struct SharedData
 {
-	uint meshlet_indices[64];
+	uint meshlet_indices[32];
 };
 
 struct Frustum {
@@ -28,7 +30,6 @@ struct s_meshlet_bound {
 	float cone_angle;
 	vec3 sphere_pos;
 	float sphere_radius;
-	vec3 normal_pos;
 };
 
 layout (binding = 0) uniform MatrixBuffer {
@@ -42,7 +43,7 @@ layout (std430, set = 1, binding = 4) buffer MeshletBounds {
 	s_meshlet_bound bounds[];	
 } meshlet_bounds;
 
-shared bool dispatch_bits[64];
+shared bool dispatch_bits[32];
 
 taskPayloadSharedEXT SharedData payload;
 
@@ -58,54 +59,59 @@ layout (push_constant, std430) uniform MeshPushConstant {
 void main()
 {
 	
-	// uint u_id = 64 * gl_WorkGroupID.x + gl_LocalInvocationIndex;
+	uint u_id = 32 * gl_WorkGroupID.x + gl_LocalInvocationIndex;
 
-	// if (u_id >= meshlet_count) {
-	// 	return;
-	// }
-
-	// payload.meshlet_indices[gl_LocalInvocationIndex] = u_id;
-
-	// s_meshlet_bound bound = meshlet_bounds.bounds[u_id];
+	if (u_id >= meshlet_count) {
+		return;
+	}
 
 
-	// vec4 t_sphere_pos = mat_buffer.proj * mat_buffer.view * rotation_mat * scale_mat * vec4(bound.sphere_pos, 1.f);
-	// 	
-	// bool isNotClipped = -t_sphere_pos.w < t_sphere_pos.x && t_sphere_pos.x < t_sphere_pos.w &&
-	// 				 -t_sphere_pos.w < t_sphere_pos.y && t_sphere_pos.y < t_sphere_pos.w &&
-	// 				 -t_sphere_pos.w < t_sphere_pos.z && t_sphere_pos.z < t_sphere_pos.w;
-	// 
-	// dispatch_bits[gl_LocalInvocationIndex] = isNotClipped;
+	s_meshlet_bound bound = meshlet_bounds.bounds[u_id];
 
+	payload.meshlet_indices[gl_LocalInvocationIndex] = u_id;
 
+	vec4 t_sphere_pos = mat_buffer.proj * mat_buffer.view * rotation_mat * scale_mat * vec4(bound.sphere_pos, 1.f);
+		
+	bool isNotClipped = -t_sphere_pos.w < t_sphere_pos.x && t_sphere_pos.x < t_sphere_pos.w &&
+					 -t_sphere_pos.w < t_sphere_pos.y && t_sphere_pos.y < t_sphere_pos.w &&
+					 -t_sphere_pos.w < t_sphere_pos.z && t_sphere_pos.z < t_sphere_pos.w;
 
-	// if (gl_LocalInvocationIndex == 0) {
-	// 	uint accIndex = 0;
-	// 	
-	// 	for (uint i = 0; i < 64; i++) {
-	// 		if (dispatch_bits[i]) {
-	// 			payload.meshlet_indices[accIndex++] = payload.meshlet_indices[i];
-	// 		}
-	// 	}
+	uvec4 ballot = subgroupBallot(isNotClipped);
 
-	// 	uint offset = 64 * (gl_WorkGroupID.x + 1);
-	// 	uint min_offset = 64 * gl_WorkGroupID.x;
+	if (subgroupElect()) {
+		uint offset = 32 * (gl_WorkGroupID.x + 1);
+		uint min_offset = 32 * gl_WorkGroupID.x;
 
-	// 	uint valid_tasks = min(accIndex, meshlet_count - min_offset);
+		uint accIndex = 0;
 
-	// 	EmitMeshTasksEXT(valid_tasks, 1, 1);
-	// }
+		for (uint i = 0; i < 32; i++) {
+			bool canBeDispatched = subgroupBallotBitExtract(ballot, i);
 
-	uint global_id = 64 * gl_WorkGroupID.x + gl_LocalInvocationIndex;
-	payload.meshlet_indices[gl_LocalInvocationIndex] = global_id;
+			if (canBeDispatched) {
+				payload.meshlet_indices[accIndex] = payload.meshlet_indices[i];
+				accIndex++;
+			}
+		}
 
-	if (gl_LocalInvocationIndex == 0) {
-		uint offset = 64 * (gl_WorkGroupID.x + 1);
-		uint min_offset = 64 * gl_WorkGroupID.x;
+		uint numOfTasks = subgroupBallotBitCount(ballot);
 
-		uint valid_tasks = min(offset - min_offset, meshlet_count - min_offset);
+		debugPrintfEXT("id: %d, NumOfTasks: %d\n", gl_WorkGroupID.x, numOfTasks);
+
+		uint valid_tasks = min(numOfTasks, meshlet_count - min_offset);
 
 		EmitMeshTasksEXT(valid_tasks, 1, 1);
 	}
+
+	// uint global_id = 32 * gl_WorkGroupID.x + gl_LocalInvocationIndex;
+	// payload.meshlet_indices[gl_LocalInvocationIndex] = global_id;
+
+	// if (gl_LocalInvocationIndex == 0) {
+	// 	uint offset = 32 * (gl_WorkGroupID.x + 1);
+	// 	uint min_offset = 32 * gl_WorkGroupID.x;
+
+	// 	uint valid_tasks = min(offset - min_offset, meshlet_count - min_offset);
+
+	// 	EmitMeshTasksEXT(valid_tasks, 1, 1);
+	// }
 }
 

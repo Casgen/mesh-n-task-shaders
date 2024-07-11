@@ -102,7 +102,7 @@ void MeshApplication::InitializeModelPipeline()
     const std::vector<VkCore::ShaderData> shaders =
         VkCore::ShaderLoader::LoadMeshShaders("MeshAndTaskShaders/Res/Shaders/mesh_shading");
 
-    m_Model = new Model("MeshAndTaskShaders/Res/Artwork/OBJs/kitten.obj");
+    m_Model = new Model("MeshAndTaskShaders/Res/Artwork/OBJs/plane.obj");
 
     // Pipeline
     VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice(), true);
@@ -227,7 +227,7 @@ void MeshApplication::DrawFrame()
 #ifndef VK_MESH_EXT
             vkCmdDrawMeshTasksNv(&*commandBuffer, mesh.GetMeshletCount(), 0);
 #else
-            vkCmdDrawMeshTasksEXT(&*commandBuffer, (mesh.GetMeshletCount() / 64) + 1, 1, 1);
+            vkCmdDrawMeshTasksEXT(&*commandBuffer, (mesh.GetMeshletCount() / 32) + 1, 1, 1);
 #endif
         }
     }
