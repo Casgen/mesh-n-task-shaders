@@ -119,35 +119,16 @@ void main()
 	o_position[gl_LocalInvocationIndex] = pos.xyz;
 
 
-	// for (uint i = gl_LocalInvocationIndex; i < meshlet.triangle_count; i += 64)
-	// {
-	// 	uint triangle = meshlet_triangles.triangles[meshlet.triangle_offset + i];
-
-	// 	uint firstIndex = triangle & 0xFF;
-	// 	uint secondIndex = (triangle >> 8) & 0xFF;
-	// 	uint thirdIndex = (triangle >> 16) & 0xFF;
-
-	// 	gl_PrimitiveTriangleIndicesEXT[i] = uvec3(firstIndex, secondIndex, thirdIndex); 
-	// }
-
 	for (uint i = gl_LocalInvocationIndex; i < meshlet.triangle_count; i += 64)
 	{
+		uint triangle = meshlet_triangles.triangles[meshlet.triangle_offset + i];
 
-		uint firstIndex = meshlet_triangles.triangles[(meshlet.triangle_offset + i * 3)];
-		uint secondIndex = meshlet_triangles.triangles[(meshlet.triangle_offset + i * 3) + 1];
-		uint thirdIndex = meshlet_triangles.triangles[(meshlet.triangle_offset + i * 3) + 2];
-
-		if (firstIndex > 63) {
-			debugPrintfEXT("Index: %v4f\n", firstIndex);
-		}
-		if (secondIndex > 63) {
-			debugPrintfEXT("Index: %v4f\n", secondIndex);
-		}
-		if (thirdIndex > 63) {
-			debugPrintfEXT("Index: %v4f\n", thirdIndex);
-		}
+		uint firstIndex = triangle & 0xFF;
+		uint secondIndex = (triangle >> 8) & 0xFF;
+		uint thirdIndex = (triangle >> 16) & 0xFF;
 
 		gl_PrimitiveTriangleIndicesEXT[i] = uvec3(firstIndex, secondIndex, thirdIndex); 
 	}
+
 
 }
