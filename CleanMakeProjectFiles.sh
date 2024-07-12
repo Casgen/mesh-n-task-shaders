@@ -18,7 +18,7 @@ cd Vendor
 rm GLM.make
 rm GLFW.make
 
-cd ../../MeshAndTaskShaders
+cd ../../MeshletCulling
 
 rm Makefile
 

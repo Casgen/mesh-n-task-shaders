@@ -1,5 +1,5 @@
 ---@diagnostic disable: undefined-global
-project("MeshAndTaskShaders")
+project("MeshletCulling")
 	kind("ConsoleApp")
 
 	language("C++")

@@ -100,9 +100,9 @@ void MeshApplication::InitializeModelPipeline()
 {
 
     const std::vector<VkCore::ShaderData> shaders =
-        VkCore::ShaderLoader::LoadMeshShaders("MeshAndTaskShaders/Res/Shaders/mesh_shading");
+        VkCore::ShaderLoader::LoadMeshShaders("MeshletCulling/Res/Shaders/mesh_shading");
 
-    m_Model = new Model("MeshAndTaskShaders/Res/Artwork/OBJs/plane.obj");
+    m_Model = new Model("MeshletCulling/Res/Artwork/OBJs/plane_d.obj");
 
     // Pipeline
     VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice(), true);
@@ -147,7 +147,7 @@ void MeshApplication::InitializeAxisPipeline()
     attributeBuilder.SetBinding(0);
 
     std::vector<VkCore::ShaderData> shaderData =
-        VkCore::ShaderLoader::LoadClassicShaders("MeshAndTaskShaders/Res/Shaders/axis");
+        VkCore::ShaderLoader::LoadClassicShaders("MeshletCulling/Res/Shaders/axis");
     VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice());
 
     m_AxisPipeline = pipelineBuilder.BindShaderModules(shaderData)
@@ -185,6 +185,7 @@ void MeshApplication::DrawFrame()
     ubo.m_Proj = m_Camera.GetProjMatrix();
     ubo.m_View = m_Camera.GetViewMatrix();
     ubo.frustum = m_Camera.CalculateFrustumNormals();
+
 
     fragment_pc.cam_pos = m_Camera.GetPosition();
     fragment_pc.cam_view_dir = m_Camera.GetViewDirection();

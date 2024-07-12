@@ -20,9 +20,9 @@ struct Frustum {
 	vec3 bottom;
 	vec3 front;
 	vec3 back;
-	vec3 pointSides;
-	vec3 pointFront;
-	vec3 pointBack;
+	vec3 point_sides;
+	vec3 point_front;
+	vec3 point_back;
 };
 
 struct s_meshlet_bound {
@@ -65,7 +65,6 @@ void main()
 		return;
 	}
 
-
 	s_meshlet_bound bound = meshlet_bounds.bounds[u_id];
 
 	payload.meshlet_indices[gl_LocalInvocationIndex] = u_id;
@@ -76,7 +75,31 @@ void main()
 					 -t_sphere_pos.w < t_sphere_pos.y && t_sphere_pos.y < t_sphere_pos.w &&
 					 -t_sphere_pos.w < t_sphere_pos.z && t_sphere_pos.z < t_sphere_pos.w;
 
-	uvec4 ballot = subgroupBallot(isNotClipped);
+
+	
+	vec3 sides_vector = bound.sphere_pos - mat_buffer.frustum.point_sides;
+
+	float left_distance = dot(sides_vector, mat_buffer.frustum.left) - bound.sphere_radius; 
+	float right_distance = dot(sides_vector, mat_buffer.frustum.right) - bound.sphere_radius; 
+	float top_distance = dot(sides_vector, mat_buffer.frustum.top) - bound.sphere_radius; 
+	float bottom_distance = dot(sides_vector, mat_buffer.frustum.bottom) - bound.sphere_radius; 
+
+	float front_distance = dot(mat_buffer.frustum.point_front - bound.sphere_pos, mat_buffer.frustum.front) - bound.sphere_radius; 
+	float back_distance = dot(mat_buffer.frustum.point_back - bound.sphere_pos, mat_buffer.frustum.back) - bound.sphere_radius; 
+
+	uint result = uint(left_distance < 0.f); // bitwise implementation;
+	result |= uint(right_distance < 0.f) << 1 ; 
+	result |= uint(top_distance < 0.f) << 2;
+	result |= uint(bottom_distance < 0.f) << 3;
+	result |= uint(front_distance < 0.f) << 4;
+	result |= uint(back_distance < 0.f) << 5;
+
+	if (result != 63) {
+		debugPrintfEXT("bottom: %.3f, top: %.3f\n", bottom_distance, top_distance);
+	}
+
+
+	uvec4 ballot = subgroupBallot(result == 0x3F);
 
 	if (subgroupElect()) {
 		uint offset = 32 * (gl_WorkGroupID.x + 1);
@@ -95,7 +118,7 @@ void main()
 
 		uint numOfTasks = subgroupBallotBitCount(ballot);
 
-		debugPrintfEXT("id: %d, NumOfTasks: %d\n", gl_WorkGroupID.x, numOfTasks);
+		// debugPrintfEXT("id: %d, NumOfTasks: %d\n", gl_WorkGroupID.x, numOfTasks);
 
 		uint valid_tasks = min(numOfTasks, meshlet_count - min_offset);
 
