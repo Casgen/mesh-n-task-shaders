@@ -69,11 +69,12 @@ void main()
 
 	payload.meshlet_indices[gl_LocalInvocationIndex] = u_id;
 
-	vec4 t_sphere_pos = mat_buffer.proj * mat_buffer.view * rotation_mat * scale_mat * vec4(bound.sphere_pos, 1.f);
-		
-	bool isNotClipped = -t_sphere_pos.w < t_sphere_pos.x && t_sphere_pos.x < t_sphere_pos.w &&
-					 -t_sphere_pos.w < t_sphere_pos.y && t_sphere_pos.y < t_sphere_pos.w &&
-					 -t_sphere_pos.w < t_sphere_pos.z && t_sphere_pos.z < t_sphere_pos.w;
+	// Meshlet Frustum Culling
+	// vec4 t_sphere_pos = mat_buffer.proj * mat_buffer.view * rotation_mat * scale_mat * vec4(bound.sphere_pos, 1.f);
+	// 	
+	// bool isNotClipped = -t_sphere_pos.w < t_sphere_pos.x && t_sphere_pos.x < t_sphere_pos.w &&
+	// 				 -t_sphere_pos.w < t_sphere_pos.y && t_sphere_pos.y < t_sphere_pos.w &&
+	// 				 -t_sphere_pos.w < t_sphere_pos.z && t_sphere_pos.z < t_sphere_pos.w;
 
 
 	
@@ -84,8 +85,8 @@ void main()
 	float top_distance = dot(sides_vector, mat_buffer.frustum.top) - bound.sphere_radius; 
 	float bottom_distance = dot(sides_vector, mat_buffer.frustum.bottom) - bound.sphere_radius; 
 
-	float front_distance = dot(mat_buffer.frustum.point_front - bound.sphere_pos, mat_buffer.frustum.front) - bound.sphere_radius; 
-	float back_distance = dot(mat_buffer.frustum.point_back - bound.sphere_pos, mat_buffer.frustum.back) - bound.sphere_radius; 
+	float front_distance = dot(bound.sphere_pos - mat_buffer.frustum.point_front, mat_buffer.frustum.front) - bound.sphere_radius; 
+	float back_distance = dot(bound.sphere_pos - mat_buffer.frustum.point_back, mat_buffer.frustum.back) - bound.sphere_radius; 
 
 	uint result = uint(left_distance < 0.f); // bitwise implementation;
 	result |= uint(right_distance < 0.f) << 1 ; 
@@ -94,12 +95,9 @@ void main()
 	result |= uint(front_distance < 0.f) << 4;
 	result |= uint(back_distance < 0.f) << 5;
 
-	if (result != 63) {
-		debugPrintfEXT("bottom: %.3f, top: %.3f\n", bottom_distance, top_distance);
-	}
-
-
-	uvec4 ballot = subgroupBallot(result == 0x3F);
+	bool isNotClipped = result == 63;
+	
+	uvec4 ballot = subgroupBallot(isNotClipped);
 
 	if (subgroupElect()) {
 		uint offset = 32 * (gl_WorkGroupID.x + 1);

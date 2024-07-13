@@ -74,7 +74,7 @@ void MeshApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
         m_MatBuffers.emplace_back(std::move(matBuffer));
     }
 
-    // Mesh Descriptor Sets
+    // Camera Matrix Descriptor Sets
     VkCore::DescriptorBuilder descriptorBuilder(VkCore::DeviceManager::GetDevice());
 
     for (uint32_t i = 0; i < m_Renderer.m_Swapchain.GetImageCount(); i++)
@@ -82,7 +82,8 @@ void MeshApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
         vk::DescriptorSet tempSet;
 
         descriptorBuilder.BindBuffer(0, m_MatBuffers[i], vk::DescriptorType::eUniformBuffer,
-                                     vk::ShaderStageFlagBits::eMeshNV | vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eTaskEXT);
+                                     vk::ShaderStageFlagBits::eMeshNV | vk::ShaderStageFlagBits::eVertex |
+                                         vk::ShaderStageFlagBits::eTaskEXT);
         descriptorBuilder.Build(tempSet, m_MatrixDescSetLayout);
         descriptorBuilder.Clear();
 
@@ -91,6 +92,7 @@ void MeshApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 
     InitializeModelPipeline();
     InitializeAxisPipeline();
+    InitializeBoundsPipeline();
 
     Loop();
     Shutdown();
@@ -102,7 +104,7 @@ void MeshApplication::InitializeModelPipeline()
     const std::vector<VkCore::ShaderData> shaders =
         VkCore::ShaderLoader::LoadMeshShaders("MeshletCulling/Res/Shaders/mesh_shading");
 
-    m_Model = new Model("MeshletCulling/Res/Artwork/OBJs/plane_d.obj");
+    m_Model = new Model("MeshletCulling/Res/Artwork/OBJs/plane.obj");
 
     // Pipeline
     VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice(), true);
@@ -112,12 +114,13 @@ void MeshApplication::InitializeModelPipeline()
                           .EnableDepthTest()
                           .AddViewport(glm::uvec4(0, 0, m_Window->GetWidth(), m_Window->GetHeight()))
                           .FrontFaceDirection(vk::FrontFace::eClockwise)
-                          .SetCullMode(vk::CullModeFlagBits::eBack)
+                          .SetCullMode(vk::CullModeFlagBits::eNone)
                           .AddDisabledBlendAttachment()
                           .AddDescriptorLayout(m_MatrixDescSetLayout)
                           .AddDescriptorLayout(m_Model->GetMeshes()[0].GetDescriptorSetLayout())
                           .AddPushConstantRange<FragmentPC>(vk::ShaderStageFlagBits::eFragment)
-                          .AddPushConstantRange<MeshPC>(vk::ShaderStageFlagBits::eMeshEXT | vk::ShaderStageFlagBits::eTaskEXT, sizeof(FragmentPC))
+                          .AddPushConstantRange<MeshPC>(
+                              vk::ShaderStageFlagBits::eMeshEXT | vk::ShaderStageFlagBits::eTaskEXT, sizeof(FragmentPC))
                           .SetPrimitiveAssembly(vk::PrimitiveTopology::eTriangleList)
                           .AddDynamicState(vk::DynamicState::eScissor)
                           .AddDynamicState(vk::DynamicState::eViewport)
@@ -164,7 +167,35 @@ void MeshApplication::InitializeAxisPipeline()
                          .Build(m_AxisPipelineLayout);
 }
 
+void MeshApplication::InitializeBoundsPipeline()
+{
 
+    m_Sphere = SphereModel(Vec3f(0.f, 0.f, 0.f));
+
+    VkCore::VertexAttributeBuilder attributeBuilder;
+
+    attributeBuilder.PushAttribute<float>(3).PushAttribute<float>(3).PushAttribute<float>(3);
+
+    VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice());
+
+    std::vector<VkCore::ShaderData> shaderData =
+        VkCore::ShaderLoader::LoadClassicShaders("MeshletCulling/Res/Shaders/bounds");
+
+    m_BoundsPipeline = pipelineBuilder.BindShaderModules(shaderData)
+                           .BindRenderPass(m_Renderer.m_RenderPass.GetVkRenderPass())
+                           .EnableDepthTest()
+                           .AddViewport(glm::uvec4(0, 0, m_Window->GetWidth(), m_Window->GetHeight()))
+                           .FrontFaceDirection(vk::FrontFace::eClockwise)
+                           .SetCullMode(vk::CullModeFlagBits::eNone)
+                           .BindVertexAttributes(attributeBuilder)
+                           .AddDisabledBlendAttachment()
+                           .AddDescriptorLayout(m_MatrixDescSetLayout)
+                           .AddDescriptorLayout(m_Model->GetMeshes()[0].GetDescriptorSetLayout())
+                           .SetPrimitiveAssembly(vk::PrimitiveTopology::eLineList)
+                           .AddDynamicState(vk::DynamicState::eScissor)
+                           .AddDynamicState(vk::DynamicState::eViewport)
+                           .Build(m_BoundsPipelineLayout);
+}
 
 void MeshApplication::DrawFrame()
 {
@@ -181,11 +212,16 @@ void MeshApplication::DrawFrame()
     m_Camera.Update();
     Frustum frustum = m_Camera.CalculateFrustumNormals();
 
+    // printf("Left: {%.3f,%.3f,%.3f}\n", frustum.left.x, frustum.left.y, frustum.left.z);
+    // printf("Right: {%.3f,%.3f,%.3f}\n", frustum.right.x, frustum.right.y, frustum.right.z);
+    // printf("Top: {%.3f,%.3f,%.3f}\n", frustum.top.x, frustum.top.y, frustum.top.z);
+    // printf("bottom: {%.3f,%.3f,%.3f}\n", frustum.bottom.x, frustum.bottom.y, frustum.bottom.z);
+    // printf("position: {%.3f,%.3f,%.3f}\n\n", frustum.pointSides.x, frustum.pointSides.y, frustum.pointSides.z);
+
     MatrixBuffer ubo{};
     ubo.m_Proj = m_Camera.GetProjMatrix();
     ubo.m_View = m_Camera.GetViewMatrix();
     ubo.frustum = m_Camera.CalculateFrustumNormals();
-
 
     fragment_pc.cam_pos = m_Camera.GetPosition();
     fragment_pc.cam_view_dir = m_Camera.GetViewDirection();
@@ -240,6 +276,25 @@ void MeshApplication::DrawFrame()
         vk::Viewport viewport = vk::Viewport(0, 0, m_Window->GetWidth(), m_Window->GetHeight(), 0, 1);
         commandBuffer.setViewport(0, 1, &viewport);
 
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_BoundsPipeline);
+        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_BoundsPipelineLayout, 0, 1,
+                                         &m_MatrixDescriptorSets[imageIndex], 0, nullptr);
+
+        commandBuffer.bindVertexBuffers(0, m_Sphere.m_Vertexbuffer.GetVkBuffer(), {0});
+        commandBuffer.bindIndexBuffer(m_Sphere.m_IndexBuffer.GetVkBuffer(), 0, vk::IndexType::eUint32);
+
+		for (const Mesh& mesh : m_Model->GetMeshes()) {
+			commandBuffer.drawIndexed(m_Sphere.indices.size(), mesh.GetMeshletCount(), 0, 0, 0);
+		}
+    }
+
+    {
+        vk::Rect2D scissor = vk::Rect2D({0, 0}, {m_Window->GetWidth(), m_Window->GetHeight()});
+        commandBuffer.setScissor(0, 1, &scissor);
+
+        vk::Viewport viewport = vk::Viewport(0, 0, m_Window->GetWidth(), m_Window->GetHeight(), 0, 1);
+        commandBuffer.setViewport(0, 1, &viewport);
+
         commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_AxisPipeline);
         commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_AxisPipelineLayout, 0, 1,
                                          &m_MatrixDescriptorSets[imageIndex], 0, nullptr);
@@ -249,7 +304,6 @@ void MeshApplication::DrawFrame()
         commandBuffer.bindIndexBuffer(m_AxisIndexBuffer.GetVkBuffer(), 0, vk::IndexType::eUint32);
         commandBuffer.drawIndexed(6, 1, 0, 0, 0);
     }
-
 
     // {
     //     m_Renderer.ImGuiNewFrame(m_Window->GetWidth(), m_Window->GetHeight());

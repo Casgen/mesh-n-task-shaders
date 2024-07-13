@@ -12,6 +12,7 @@
 #include "Model/MouseState.h"
 #include "Model/Structures/AABB.h"
 #include "Model/Structures/OcTree.h"
+#include "Model/Structures/Sphere.h"
 #include "Vk/Descriptors/DescriptorBuilder.h"
 #include "vulkan/vulkan_core.h"
 #include "vulkan/vulkan_handles.hpp"
@@ -31,6 +32,7 @@ class MeshApplication
 
     void InitializeModelPipeline();
     void InitializeAxisPipeline();
+	void InitializeBoundsPipeline();
 
     void RecreateSwapchain();
 
@@ -92,6 +94,11 @@ class MeshApplication
         .cam_pos = glm::vec3(0.f),
         .cam_view_dir = glm::vec3(0.f),
     };
+
+	SphereModel m_Sphere;
+
+	vk::Pipeline m_BoundsPipeline;
+	vk::PipelineLayout m_BoundsPipelineLayout;
 
 #ifndef VK_MESH_EXT
     PFN_vkCmdDrawMeshTasksNV vkCmdDrawMeshTasksNv;
