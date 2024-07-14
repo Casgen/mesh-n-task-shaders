@@ -23,6 +23,8 @@ struct Frustum {
 	vec3 point_sides;
 	vec3 point_front;
 	vec3 point_back;
+	float azimuth;
+	float zenith;
 };
 
 struct s_meshlet_bound {

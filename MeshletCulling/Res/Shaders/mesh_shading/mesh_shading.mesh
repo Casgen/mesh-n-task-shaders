@@ -19,9 +19,12 @@ struct Frustum {
 	vec3 bottom;
 	vec3 front;
 	vec3 back;
-	vec3 pointSides;
-	vec3 pointFront;
-	vec3 pointBack;
+	vec3 point_sides;
+	vec3 point_front;
+	vec3 point_back;
+	vec3 side_vec;
+	float azimuth;
+	float zenith;
 };
 
 struct s_vertex {

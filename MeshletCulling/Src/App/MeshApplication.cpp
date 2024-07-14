@@ -6,15 +6,14 @@
 #include <iostream>
 #include <stddef.h>
 #include <stdexcept>
+#include <tuple>
 
-#include "Constants.h"
 #include "GLFW/glfw3.h"
 #include "Log/Log.h"
 #include "Model/Camera.h"
 #include "Model/MatrixBuffer.h"
 #include "Model/Shaders/ShaderData.h"
 #include "Model/Shaders/ShaderLoader.h"
-#include "Model/Structures/Edge.h"
 #include "Model/Structures/OcTree.h"
 #include "Vk/Buffers/Buffer.h"
 #include "Vk/Descriptors/DescriptorBuilder.h"
@@ -33,6 +32,7 @@
 #include "vulkan/vulkan_handles.hpp"
 #include "Model/Structures/AABB.h"
 #include "vulkan/vulkan_structs.hpp"
+#include "glm/gtc/type_ptr.hpp"
 
 void MeshApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 {
@@ -64,6 +64,13 @@ void MeshApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 #endif
 
     m_Camera = Camera({0.f, 0.f, -2.f}, {0.f, 0.f, 0.f}, (float)m_Window->GetWidth() / m_Window->GetHeight());
+    m_FrustumCamera = Camera({0.f, 0.f, -2.f}, {0.f, 0.f, 0.f}, (float)m_Window->GetWidth() / m_Window->GetHeight(), 45.f, 5.f);
+
+    m_ZenithAngle = m_FrustumCamera.GetZenith();
+    m_AzimuthAngle = m_FrustumCamera.GetAzimuth();
+    m_Position = m_FrustumCamera.GetPosition();
+
+    m_FrustumCamera.ConstructFrustumModel();
 
     // Create Uniform Buffers
     for (int i = 0; i < m_Renderer.m_Swapchain.GetImageCount(); i++)
@@ -93,6 +100,7 @@ void MeshApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
     InitializeModelPipeline();
     InitializeAxisPipeline();
     InitializeBoundsPipeline();
+    InitializeFrustumPipeline();
 
     Loop();
     Shutdown();
@@ -104,7 +112,7 @@ void MeshApplication::InitializeModelPipeline()
     const std::vector<VkCore::ShaderData> shaders =
         VkCore::ShaderLoader::LoadMeshShaders("MeshletCulling/Res/Shaders/mesh_shading");
 
-    m_Model = new Model("MeshletCulling/Res/Artwork/OBJs/plane.obj");
+    m_Model = new Model("MeshletCulling/Res/Artwork/OBJs/kitten.obj");
 
     // Pipeline
     VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice(), true);
@@ -167,6 +175,35 @@ void MeshApplication::InitializeAxisPipeline()
                          .Build(m_AxisPipelineLayout);
 }
 
+void MeshApplication::InitializeFrustumPipeline()
+{
+    std::tie(m_FrustumBuffer, m_FrustumIndexBuffer) = m_FrustumCamera.ConstructFrustumModel();
+
+    VkCore::VertexAttributeBuilder attributeBuilder{};
+
+    attributeBuilder.PushAttribute<float>(3).PushAttribute<float>(3).PushAttribute<float>(3);
+    attributeBuilder.SetBinding(0);
+
+    std::vector<VkCore::ShaderData> shaderData =
+        VkCore::ShaderLoader::LoadClassicShaders("MeshletCulling/Res/Shaders/frustum");
+
+    VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice());
+
+    m_FrustumPipeline = pipelineBuilder.BindShaderModules(shaderData)
+                            .BindRenderPass(m_Renderer.m_RenderPass.GetVkRenderPass())
+                            .AddViewport(glm::uvec4(0, 0, m_Window->GetWidth(), m_Window->GetHeight()))
+                            .FrontFaceDirection(vk::FrontFace::eCounterClockwise)
+                            .SetCullMode(vk::CullModeFlagBits::eNone)
+                            .BindVertexAttributes(attributeBuilder)
+                            .AddDisabledBlendAttachment()
+                            .SetLineWidth(2.f)
+                            .AddDescriptorLayout(m_MatrixDescSetLayout)
+                            .SetPrimitiveAssembly(vk::PrimitiveTopology::eLineList)
+                            .AddDynamicState(vk::DynamicState::eScissor)
+                            .AddDynamicState(vk::DynamicState::eViewport)
+                            .Build(m_FrustumPipelineLayout);
+}
+
 void MeshApplication::InitializeBoundsPipeline()
 {
 
@@ -209,19 +246,24 @@ void MeshApplication::DrawFrame()
         return;
     }
 
-    m_Camera.Update();
-    Frustum frustum = m_Camera.CalculateFrustumNormals();
+	const double time = glfwGetTime();
 
-    // printf("Left: {%.3f,%.3f,%.3f}\n", frustum.left.x, frustum.left.y, frustum.left.z);
-    // printf("Right: {%.3f,%.3f,%.3f}\n", frustum.right.x, frustum.right.y, frustum.right.z);
-    // printf("Top: {%.3f,%.3f,%.3f}\n", frustum.top.x, frustum.top.y, frustum.top.z);
-    // printf("bottom: {%.3f,%.3f,%.3f}\n", frustum.bottom.x, frustum.bottom.y, frustum.bottom.z);
-    // printf("position: {%.3f,%.3f,%.3f}\n\n", frustum.pointSides.x, frustum.pointSides.y, frustum.pointSides.z);
+    m_Camera.Update();
+
+	if (m_ZenithSweepEnabled) {
+		m_FrustumCamera.Yaw(sin(time));
+	}
+
+	if (m_AzimuthSweepEnabled) {
+		m_FrustumCamera.Pitch(cos(time));
+	}
+	 
 
     MatrixBuffer ubo{};
     ubo.m_Proj = m_Camera.GetProjMatrix();
     ubo.m_View = m_Camera.GetViewMatrix();
-    ubo.frustum = m_Camera.CalculateFrustumNormals();
+
+    ubo.frustum = m_FrustumCamera.CalculateFrustum();
 
     fragment_pc.cam_pos = m_Camera.GetPosition();
     fragment_pc.cam_view_dir = m_Camera.GetViewDirection();
@@ -232,13 +274,13 @@ void MeshApplication::DrawFrame()
 
     vk::CommandBuffer commandBuffer = m_Renderer.GetCurrentCmdBuffer();
 
+    vk::Rect2D scissor = vk::Rect2D({0, 0}, {m_Window->GetWidth(), m_Window->GetHeight()});
+    commandBuffer.setScissor(0, 1, &scissor);
+
+    vk::Viewport viewport = vk::Viewport(0, 0, m_Window->GetWidth(), m_Window->GetHeight(), 0, 1);
+    commandBuffer.setViewport(0, 1, &viewport);
+
     {
-
-        vk::Rect2D scissor = vk::Rect2D({0, 0}, {m_Window->GetWidth(), m_Window->GetHeight()});
-        commandBuffer.setScissor(0, 1, &scissor);
-
-        vk::Viewport viewport = vk::Viewport(0, 0, m_Window->GetWidth(), m_Window->GetHeight(), 0, 1);
-        commandBuffer.setViewport(0, 1, &viewport);
 
         commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_ModelPipeline);
         commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_ModelPipelineLayout, 0, 1,
@@ -269,32 +311,36 @@ void MeshApplication::DrawFrame()
         }
     }
 
+    // {
+    //     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_BoundsPipeline);
+    //     commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_BoundsPipelineLayout, 0, 1,
+    //                                      &m_MatrixDescriptorSets[imageIndex], 0, nullptr);
+    //
+    //     commandBuffer.bindVertexBuffers(0, m_Sphere.m_Vertexbuffer.GetVkBuffer(), {0});
+    //     commandBuffer.bindIndexBuffer(m_Sphere.m_IndexBuffer.GetVkBuffer(), 0, vk::IndexType::eUint32);
+    //
+    //     for (const Mesh& mesh : m_Model->GetMeshes())
+    //     {
+    //         const vk::DescriptorSet& set = mesh.GetDescriptorSet();
+    //         commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_BoundsPipelineLayout, 1, 1, &set, 0,
+    //                                          nullptr);
+    //         commandBuffer.drawIndexed(m_Sphere.indices.size(), mesh.GetMeshletCount(), 0, 0, 0);
+    //     }
+    // }
+
     {
-        vk::Rect2D scissor = vk::Rect2D({0, 0}, {m_Window->GetWidth(), m_Window->GetHeight()});
-        commandBuffer.setScissor(0, 1, &scissor);
 
-        vk::Viewport viewport = vk::Viewport(0, 0, m_Window->GetWidth(), m_Window->GetHeight(), 0, 1);
-        commandBuffer.setViewport(0, 1, &viewport);
-
-        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_BoundsPipeline);
-        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_BoundsPipelineLayout, 0, 1,
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_FrustumPipeline);
+        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_FrustumPipelineLayout, 0, 1,
                                          &m_MatrixDescriptorSets[imageIndex], 0, nullptr);
 
-        commandBuffer.bindVertexBuffers(0, m_Sphere.m_Vertexbuffer.GetVkBuffer(), {0});
-        commandBuffer.bindIndexBuffer(m_Sphere.m_IndexBuffer.GetVkBuffer(), 0, vk::IndexType::eUint32);
+        commandBuffer.bindVertexBuffers(0, m_FrustumBuffer.GetVkBuffer(), {0});
 
-		for (const Mesh& mesh : m_Model->GetMeshes()) {
-			commandBuffer.drawIndexed(m_Sphere.indices.size(), mesh.GetMeshletCount(), 0, 0, 0);
-		}
+        commandBuffer.bindIndexBuffer(m_FrustumIndexBuffer.GetVkBuffer(), 0, vk::IndexType::eUint32);
+        commandBuffer.drawIndexed(32, 1, 0, 0, 0);
     }
 
     {
-        vk::Rect2D scissor = vk::Rect2D({0, 0}, {m_Window->GetWidth(), m_Window->GetHeight()});
-        commandBuffer.setScissor(0, 1, &scissor);
-
-        vk::Viewport viewport = vk::Viewport(0, 0, m_Window->GetWidth(), m_Window->GetHeight(), 0, 1);
-        commandBuffer.setViewport(0, 1, &viewport);
-
         commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_AxisPipeline);
         commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_AxisPipelineLayout, 0, 1,
                                          &m_MatrixDescriptorSets[imageIndex], 0, nullptr);
@@ -305,25 +351,49 @@ void MeshApplication::DrawFrame()
         commandBuffer.drawIndexed(6, 1, 0, 0, 0);
     }
 
-    // {
-    //     m_Renderer.ImGuiNewFrame(m_Window->GetWidth(), m_Window->GetHeight());
-    //
-    //     static bool open = true;
-    //
-    //     const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
-    //     ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + 650, main_viewport->WorkPos.y + 20),
-    //                             ImGuiCond_FirstUseEver);
-    //     ImGui::SetNextWindowSize(ImVec2(550, 680), ImGuiCond_FirstUseEver);
-    //
-    //     if (ImGui::Begin("OcTree", &open))
-    //     {
-    //         CreateImGuiOcTreeNode(m_OcTree, 0);
-    //
-    //         ImGui::End();
-    //     }
-    //
-    //     m_Renderer.ImGuiRender(commandBuffer);
-    // }
+    {
+        m_Renderer.ImGuiNewFrame(m_Window->GetWidth(), m_Window->GetHeight());
+
+        static bool open = true;
+
+        const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + 650, main_viewport->WorkPos.y + 20),
+                                ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(200, 200), ImGuiCond_FirstUseEver);
+
+        if (ImGui::Begin("Frustum", &open))
+        {
+            ImGui::Text("Zenith");
+            if (ImGui::SliderAngle("##Zenith", &m_ZenithAngle, 90, -90))
+            {
+                m_FrustumCamera.SetZenith(m_ZenithAngle);
+            };
+
+			ImGui::Text("Sweep Zenith");
+			ImGui::SameLine();
+			ImGui::Checkbox("##Sweep Zenith", &m_ZenithSweepEnabled);
+
+            ImGui::Text("Azimuth");
+            if (ImGui::SliderAngle("##Azimuth", &m_AzimuthAngle, -180, 180))
+            {
+                m_FrustumCamera.SetAzimuth(m_AzimuthAngle);
+            }
+
+			ImGui::Text("Sweep Azimuth");
+			ImGui::SameLine();
+			ImGui::Checkbox("##Sweep Azimuth", &m_AzimuthSweepEnabled);
+
+            ImGui::Text("Position");
+            if (ImGui::DragFloat3("##Position", glm::value_ptr(m_Position), 0.01f, -5.f, 5.f))
+            {
+                m_FrustumCamera.SetPosition(m_Position);
+            }
+
+            ImGui::End();
+        }
+
+        m_Renderer.ImGuiRender(commandBuffer);
+    }
 
     uint32_t endDrawResult = m_Renderer.EndDraw();
 
@@ -412,18 +482,22 @@ void MeshApplication::Shutdown()
     device.DestroyPipeline(m_ModelPipeline);
     device.DestroyPipelineLayout(m_ModelPipelineLayout);
 
-    device.DestroyPipeline(m_AabbPipeline);
-    device.DestroyPipelineLayout(m_AabbPipelineLayout);
+    device.DestroyPipeline(m_FrustumPipeline);
+    device.DestroyPipelineLayout(m_FrustumPipelineLayout);
+
+    device.DestroyPipeline(m_BoundsPipeline);
+    device.DestroyPipelineLayout(m_BoundsPipelineLayout);
 
     m_Model->Destroy();
 
     m_AxisBuffer.Destroy();
     m_AxisIndexBuffer.Destroy();
 
+    m_FrustumBuffer.Destroy();
+    m_FrustumIndexBuffer.Destroy();
+
     m_DescriptorBuilder.Clear();
     m_DescriptorBuilder.Cleanup();
-
-    m_AabbBuffer.Destroy();
 
     for (VkCore::Buffer& buffer : m_MatBuffers)
     {
@@ -488,6 +562,7 @@ bool MeshApplication::OnMousePress(MouseButtonEvent& event)
         break;
     case GLFW_MOUSE_BUTTON_RIGHT:
         m_MouseState.m_IsRMBPressed = true;
+		m_Window->DisableCursor();
         break;
     }
 
@@ -548,6 +623,7 @@ bool MeshApplication::OnMouseRelease(MouseButtonEvent& event)
         break;
     case GLFW_MOUSE_BUTTON_RIGHT:
         m_MouseState.m_IsRMBPressed = false;
+		m_Window->EnabledCursor();
         break;
     }
 

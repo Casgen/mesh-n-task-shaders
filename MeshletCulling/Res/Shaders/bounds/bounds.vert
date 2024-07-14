@@ -27,6 +27,9 @@ struct Frustum {
 	vec3 point_sides;
 	vec3 point_front;
 	vec3 point_back;
+	vec3 side_vec;
+	float azimuth;
+	float zenith;
 };
 
 layout (binding = 0) uniform MatrixBuffer {

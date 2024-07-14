@@ -33,6 +33,7 @@ class MeshApplication
     void InitializeModelPipeline();
     void InitializeAxisPipeline();
 	void InitializeBoundsPipeline();
+	void InitializeFrustumPipeline();
 
     void RecreateSwapchain();
 
@@ -56,8 +57,11 @@ class MeshApplication
     vk::Pipeline m_ModelPipeline;
     vk::PipelineLayout m_ModelPipelineLayout;
 
-    vk::Pipeline m_AabbPipeline;
-    vk::PipelineLayout m_AabbPipelineLayout;
+	vk::Pipeline m_FrustumPipeline;
+	vk::PipelineLayout m_FrustumPipelineLayout;
+
+	vk::Pipeline m_BoundsPipeline;
+	vk::PipelineLayout m_BoundsPipelineLayout;
 
     std::vector<VkCore::Buffer> m_MatBuffers;
 
@@ -67,23 +71,15 @@ class MeshApplication
     vk::DescriptorSetLayout m_MatrixDescSetLayout;
     vk::DescriptorSetLayout m_MeshDescSetLayout;
 
-    VkCore::Buffer m_MeshletBuffer;
-    VkCore::Buffer m_VertexBuffer;
-
-    VkCore::Buffer m_AabbBuffer;
-	OcTreeTriangles m_OcTree;
-	uint32_t m_OcTreeEdgesCount = 0;
-
     VkCore::Buffer m_AxisBuffer;
     VkCore::Buffer m_AxisIndexBuffer;
 
-    std::vector<Meshlet> m_Meshlets;
+    VkCore::Buffer m_FrustumBuffer;
+    VkCore::Buffer m_FrustumIndexBuffer;
 
     glm::vec2 angles = {0.f, 0.f};
 
     MeshPC mesh_pc;
-
-	AABB m_Aabb;
 
     FragmentPC fragment_pc = {
         .diffusion_color = glm::vec3(1.f),
@@ -95,10 +91,16 @@ class MeshApplication
         .cam_view_dir = glm::vec3(0.f),
     };
 
+
+	// ImGui Params
+	float m_ZenithAngle;
+	float m_AzimuthAngle;
+	bool m_AzimuthSweepEnabled = true;
+	bool m_ZenithSweepEnabled = false;
+	glm::vec3 m_Position;
+
 	SphereModel m_Sphere;
 
-	vk::Pipeline m_BoundsPipeline;
-	vk::PipelineLayout m_BoundsPipelineLayout;
 
 #ifndef VK_MESH_EXT
     PFN_vkCmdDrawMeshTasksNV vkCmdDrawMeshTasksNv;
@@ -116,4 +118,5 @@ class MeshApplication
 
     Model* m_Model = nullptr;
     Camera m_Camera;
+	Camera m_FrustumCamera;
 };
