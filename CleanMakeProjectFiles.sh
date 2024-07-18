@@ -22,4 +22,8 @@ cd ../../MeshletCulling
 
 rm Makefile
 
+cd ../MeshInstancing
+
+rm Makefile
+
 

@@ -6,12 +6,9 @@
 #include "Event/KeyEvent.h"
 #include "Event/MouseEvent.h"
 #include "Event/WindowEvent.h"
-#include "Mesh/Meshlet.h"
 #include "Mesh/Model.h"
 #include "Model/Camera.h"
 #include "Model/MouseState.h"
-#include "Model/Structures/AABB.h"
-#include "Model/Structures/OcTree.h"
 #include "Model/Structures/Sphere.h"
 #include "Vk/Descriptors/DescriptorBuilder.h"
 #include "vulkan/vulkan_core.h"
@@ -27,8 +24,6 @@ class MeshApplication
     void DrawFrame();
     void Loop();
     void Shutdown();
-
-	void CreateImGuiOcTreeNode(const OcTreeTriangles& ocTreeNode, const uint32_t level, const uint32_t index = 0, int id = 0);
 
     void InitializeModelPipeline();
     void InitializeAxisPipeline();
@@ -69,7 +64,6 @@ class MeshApplication
     vk::DescriptorSet m_MeshDescSet;
 
     vk::DescriptorSetLayout m_MatrixDescSetLayout;
-    vk::DescriptorSetLayout m_MeshDescSetLayout;
 
     VkCore::Buffer m_AxisBuffer;
     VkCore::Buffer m_AxisIndexBuffer;

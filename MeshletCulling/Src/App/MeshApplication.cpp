@@ -14,7 +14,6 @@
 #include "Model/MatrixBuffer.h"
 #include "Model/Shaders/ShaderData.h"
 #include "Model/Shaders/ShaderLoader.h"
-#include "Model/Structures/OcTree.h"
 #include "Vk/Buffers/Buffer.h"
 #include "Vk/Descriptors/DescriptorBuilder.h"
 #include "Vk/Devices/DeviceManager.h"
@@ -30,7 +29,6 @@
 #include "vulkan/vulkan_core.h"
 #include "vulkan/vulkan_enums.hpp"
 #include "vulkan/vulkan_handles.hpp"
-#include "Model/Structures/AABB.h"
 #include "vulkan/vulkan_structs.hpp"
 #include "glm/gtc/type_ptr.hpp"
 
@@ -70,7 +68,6 @@ void MeshApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
     m_AzimuthAngle = m_FrustumCamera.GetAzimuth();
     m_Position = m_FrustumCamera.GetPosition();
 
-    m_FrustumCamera.ConstructFrustumModel();
 
     // Create Uniform Buffers
     for (int i = 0; i < m_Renderer.m_Swapchain.GetImageCount(); i++)
@@ -122,7 +119,7 @@ void MeshApplication::InitializeModelPipeline()
                           .EnableDepthTest()
                           .AddViewport(glm::uvec4(0, 0, m_Window->GetWidth(), m_Window->GetHeight()))
                           .FrontFaceDirection(vk::FrontFace::eClockwise)
-                          .SetCullMode(vk::CullModeFlagBits::eNone)
+                          .SetCullMode(vk::CullModeFlagBits::eBack)
                           .AddDisabledBlendAttachment()
                           .AddDescriptorLayout(m_MatrixDescSetLayout)
                           .AddDescriptorLayout(m_Model->GetMeshes()[0].GetDescriptorSetLayout())
@@ -251,11 +248,11 @@ void MeshApplication::DrawFrame()
     m_Camera.Update();
 
 	if (m_ZenithSweepEnabled) {
-		m_FrustumCamera.Yaw(sin(time));
+		m_FrustumCamera.Pitch(sinf(time));
 	}
 
 	if (m_AzimuthSweepEnabled) {
-		m_FrustumCamera.Pitch(cos(time));
+		m_FrustumCamera.Yaw(cosf(time));
 	}
 	 
 
@@ -405,56 +402,6 @@ void MeshApplication::DrawFrame()
     }
 }
 
-void MeshApplication::CreateImGuiOcTreeNode(const OcTreeTriangles& ocTreeNode, const uint32_t level,
-                                            const uint32_t index, int id)
-{
-
-    ImGui::PushID(id);
-    if (ImGui::TreeNode("OcTreeNode", "Level: %d, Index: %d", level, index))
-    {
-        uint32_t numOfTriangles = 0;
-        if (ocTreeNode.isDivided)
-        {
-            for (int i = 0; i < 8; i++)
-            {
-                CreateImGuiOcTreeNode(*ocTreeNode.nodes[i], level + 1, i, id++);
-                numOfTriangles += ocTreeNode.nodes[i]->triangles.size();
-            }
-        }
-
-        ImGui::Text("Num Of Triangles: %d", numOfTriangles);
-        ImGui::Text("Boundary:\n\tMinPoint: {%.4f, %.4f, %.4f},\n\tMaxPoint: {%.4f, %.4f, %.4f}",
-                    ocTreeNode.boundary.minPoint.x, ocTreeNode.boundary.minPoint.y, ocTreeNode.boundary.minPoint.z,
-                    ocTreeNode.boundary.maxPoint.x, ocTreeNode.boundary.maxPoint.y, ocTreeNode.boundary.maxPoint.z);
-
-        ImGui::PushID(id++);
-        if (ImGui::TreeNode("Triangles"))
-        {
-
-            for (uint32_t i = 0; i < ocTreeNode.triangles.size(); i++)
-            {
-                ImGui::PushID(id++);
-                if (ImGui::TreeNode("Triangle", "[%d]", i))
-                {
-                    ImGui::Text("A: {%.4f, %.4f, %.4f}\n\tB: {%.4f, %.4f, %.4f}\n\tC: {%.4f, %.4f, %.4f}\n\t",
-                                ocTreeNode.triangles[i].a.x, ocTreeNode.triangles[i].a.y, ocTreeNode.triangles[i].a.z,
-                                ocTreeNode.triangles[i].b.x, ocTreeNode.triangles[i].b.y, ocTreeNode.triangles[i].b.z,
-                                ocTreeNode.triangles[i].c.x, ocTreeNode.triangles[i].c.y, ocTreeNode.triangles[i].c.z);
-
-                    ImGui::TreePop();
-                }
-                ImGui::PopID();
-            }
-            ImGui::TreePop();
-        }
-
-        ImGui::PopID();
-        ImGui::TreePop();
-    }
-
-    ImGui::PopID();
-}
-
 void MeshApplication::Loop()
 {
     if (m_Window == nullptr)
@@ -496,16 +443,15 @@ void MeshApplication::Shutdown()
     m_FrustumBuffer.Destroy();
     m_FrustumIndexBuffer.Destroy();
 
-    m_DescriptorBuilder.Clear();
-    m_DescriptorBuilder.Cleanup();
-
     for (VkCore::Buffer& buffer : m_MatBuffers)
     {
         buffer.Destroy();
     }
 
-    device.DestroyDescriptorSetLayout(m_MeshDescSetLayout);
     device.DestroyDescriptorSetLayout(m_MatrixDescSetLayout);
+
+    m_DescriptorBuilder.Clear();
+    m_DescriptorBuilder.Cleanup();
 
     delete m_Window;
 }

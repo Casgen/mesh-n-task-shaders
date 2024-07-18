@@ -1,0 +1,124 @@
+#version 460
+
+#extension GL_EXT_mesh_shader : require
+#extension GL_EXT_debug_printf : enable
+#extension GL_KHR_shader_subgroup_ballot : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+
+
+struct SharedData
+{
+	uint instance_index;
+	uint meshlet_indices[32];
+};
+
+struct Frustum {
+	vec3 left;
+	vec3 right;
+	vec3 top;
+	vec3 bottom;
+	vec3 front;
+	vec3 back;
+	vec3 point_sides;
+	vec3 point_front;
+	vec3 point_back;
+	vec3 side_vec;
+	float azimuth;
+	float zenith;
+};
+
+struct s_meshlet_bound {
+	vec3 normal;
+	float cone_angle;
+	vec3 sphere_pos;
+	float sphere_radius;
+};
+
+layout (binding = 0) uniform MatrixBuffer {
+    mat4 model;
+    mat4 view;
+    mat4 proj;
+	Frustum frustum;
+} mat_buffer;
+
+layout (std430, set = 1, binding = 4) buffer MeshletBounds {
+	s_meshlet_bound bounds[];	
+} meshlet_bounds;
+
+layout (std430, set = 2, binding = 0) buffer Instances {
+     mat4 matrices[];
+} instances;
+
+shared bool dispatch_bits[32];
+
+taskPayloadSharedEXT SharedData payload;
+
+layout (push_constant, std430) uniform MeshPushConstant {
+	// The offset is here due to the offset due to the preceding push constant used
+	// in the fragment shader.
+    layout(offset = 96) mat4 rotation_mat; 
+    mat4 scale_mat;
+	uint meshlet_count;
+};
+
+
+void main()
+{
+	uint instance_index = gl_WorkGroupID.y;
+	uint meshlet_index = 32 * gl_WorkGroupID.x + gl_LocalInvocationIndex;
+
+	if (meshlet_index >= meshlet_count) {
+		return;
+	}
+
+	payload.instance_index = instance_index;
+	payload.meshlet_indices[gl_LocalInvocationIndex] = meshlet_index;
+
+	s_meshlet_bound bound = meshlet_bounds.bounds[meshlet_index];
+	
+	vec4 transl_pos = instances.matrices[instance_index] * rotation_mat * vec4(bound.sphere_pos, 1.f);
+	vec3 sides_vector = transl_pos.xyz - mat_buffer.frustum.point_sides;
+
+	float left_distance = dot(sides_vector, mat_buffer.frustum.left) - bound.sphere_radius; 
+	float right_distance = dot(sides_vector, mat_buffer.frustum.right) - bound.sphere_radius; 
+	float top_distance = dot(sides_vector, mat_buffer.frustum.top) - bound.sphere_radius; 
+	float bottom_distance = dot(sides_vector, mat_buffer.frustum.bottom) - bound.sphere_radius; 
+
+	float front_distance = dot(transl_pos.xyz - mat_buffer.frustum.point_front, mat_buffer.frustum.front) - bound.sphere_radius; 
+	float back_distance = dot(transl_pos.xyz - mat_buffer.frustum.point_back, mat_buffer.frustum.back) - bound.sphere_radius; 
+
+	uint result = uint(left_distance < 0.f); // bitwise implementation;
+	result |= uint(right_distance < 0.f) << 1 ; 
+	result |= uint(top_distance < 0.f) << 2;
+	result |= uint(bottom_distance < 0.f) << 3;
+	result |= uint(front_distance < 0.f) << 4;
+	result |= uint(back_distance < 0.f) << 5;
+
+	bool isNotClipped = result == 63;
+	
+	uvec4 ballot = subgroupBallot(isNotClipped);
+
+	if (subgroupElect()) {
+		uint min_offset = 32 * gl_WorkGroupID.x;
+
+		uint accIndex = 0;
+
+		for (uint i = 0; i < 32; i++) {
+			bool canBeDispatched = subgroupBallotBitExtract(ballot, i);
+
+			if (canBeDispatched) {
+				payload.meshlet_indices[accIndex] = payload.meshlet_indices[i];
+				accIndex++;
+			}
+		}
+
+		uint numOfTasks = subgroupBallotBitCount(ballot);
+
+		uint valid_tasks = min(numOfTasks, meshlet_count - min_offset);
+
+		EmitMeshTasksEXT(valid_tasks, 1, 1);
+	}
+}
+

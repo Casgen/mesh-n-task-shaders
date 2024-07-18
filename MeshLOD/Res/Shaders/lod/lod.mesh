@@ -1,0 +1,145 @@
+#version 460
+
+#extension GL_EXT_mesh_shader : require
+#extension GL_EXT_debug_printf : enable
+
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+layout(triangles) out;
+layout(max_vertices=64, max_primitives=126) out;
+
+struct SharedData
+{
+	uint instance_index;
+	uint meshlet_indices[32];
+};
+
+struct Frustum {
+	vec3 left;
+	vec3 right;
+	vec3 top;
+	vec3 bottom;
+	vec3 front;
+	vec3 back;
+	vec3 point_sides;
+	vec3 point_front;
+	vec3 point_back;
+	vec3 side_vec;
+	float azimuth;
+	float zenith;
+};
+
+struct s_vertex {
+    vec3 position;
+    vec3 normal;
+    vec3 tangent;
+    vec3 bitagent;
+    vec2 texCoords;
+};
+
+struct s_meshlet {
+    uint vertex_offset;
+    uint triangle_offset;
+    uint vertex_count;
+    uint triangle_count;
+};
+
+struct s_meshlet_bound {
+	vec3 normal;
+	float coneAngle;
+	vec3 spherePos;
+	float sphereRadius;
+};
+
+layout (binding = 0) uniform MatrixBuffer {
+    mat4 model;
+    mat4 view;
+    mat4 proj;
+	Frustum frustum;
+} mat_buffer;
+
+layout (std430, set = 1, binding = 0) buffer VertexBuffer {
+    s_vertex vertices[];
+} vertex_buffer;
+
+layout (std430, set = 1, binding = 1) buffer MeshletBuffer {
+     s_meshlet meshlets[];
+} meshlet_buffer;
+
+layout (std430, set = 1, binding = 2) buffer MeshletVertices {
+      uint vertices[];
+} meshlet_vertices;
+
+layout (std430, set = 1, binding = 3) buffer MeshletTriangles {
+     uint triangles[];
+} meshlet_triangles;
+
+layout (std430, set = 2, binding = 0) buffer Instances {
+     mat4 matrices[];
+} instances;
+
+layout (push_constant, std430) uniform MeshPushConstant {
+	// The offset is here due to the offset due to the preceding push constant used
+	// in the fragment shader.
+    layout(offset = 96) mat4 rotation_mat; 
+    mat4 scale_mat;
+	uint meshlet_count;
+};
+
+taskPayloadSharedEXT SharedData payload;
+
+layout (location = 0) out vec4 o_color[]; 
+layout (location = 1) out vec3 o_normal[]; 
+layout (location = 2) out vec3 o_position[]; 
+
+#define MAX_COLORS 10
+vec3 meshlet_colors[MAX_COLORS] = {
+  vec3(1,0,0), 
+  vec3(0,1,0),
+  vec3(0,0,1),
+  vec3(1,1,0),
+  vec3(1,0,1),
+  vec3(0,1,1),
+  vec3(1,0.5,0),
+  vec3(0.5,1,0),
+  vec3(0,0.5,1),
+  vec3(1,1,1)
+};
+
+void main()
+{
+
+	uint index = payload.meshlet_indices[gl_WorkGroupID.x];
+
+	debugPrintfEXT("mi: %d\n", index);
+
+	s_meshlet meshlet = meshlet_buffer.meshlets[index];
+
+	SetMeshOutputsEXT(meshlet.vertex_count, meshlet.triangle_count);
+
+	for (uint i = gl_LocalInvocationIndex; i < meshlet.vertex_count; i += 32) {
+		mat4 model_mat = instances.matrices[payload.instance_index] * rotation_mat * scale_mat;
+
+		uint vertex = meshlet_vertices.vertices[meshlet.vertex_offset + i];
+		
+		vec4 pos = mat_buffer.proj * mat_buffer.view * model_mat * vec4(vertex_buffer.vertices[vertex].position, 1.0f); 
+
+		gl_MeshVerticesEXT[i].gl_Position = pos;
+
+		o_color[i] = vec4(meshlet_colors[gl_WorkGroupID.x % MAX_COLORS],1.0f);
+		o_normal[i] = mat3(transpose(inverse(model_mat))) * vertex_buffer.vertices[vertex].normal;
+		o_position[i] = pos.xyz;
+	}
+
+	for (uint i = gl_LocalInvocationIndex; i < meshlet.triangle_count; i += 32)
+	{
+		uint triangle = meshlet_triangles.triangles[meshlet.triangle_offset + i];
+
+		uint firstIndex = triangle & 0xFF;
+		uint secondIndex = (triangle >> 8) & 0xFF;
+		uint thirdIndex = (triangle >> 16) & 0xFF;
+
+		gl_PrimitiveTriangleIndicesEXT[i] = uvec3(firstIndex, secondIndex, thirdIndex); 
+	}
+
+
+}

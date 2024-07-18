@@ -11,5 +11,7 @@ workspace("MeshAndTaskShaders")
     configurations({ "Debug", "Release" })
 
     include("MeshletCulling")
+    include("MeshInstancing")
+	include("MeshLOD")
     include("VulkanCore")
 
