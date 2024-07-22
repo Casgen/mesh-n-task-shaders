@@ -61,20 +61,22 @@ shared bool dispatch_bits[32];
 
 taskPayloadSharedEXT SharedData payload;
 
-layout (push_constant, std430) uniform MeshPushConstant {
+layout (push_constant, std430) uniform LODPushConstant {
 	// The offset is here due to the offset due to the preceding push constant used
 	// in the fragment shader.
     layout(offset = 96) mat4 rotation_mat; 
     mat4 scale_mat;
 	uint max_meshlet_count;
+	float lod_pow;
 };
 
 uint calculate_lod(uint instance_index) {
 	vec3 instance_pos = instances.matrices[instance_index][3].xyz;
 
 	float distance = length(instance_pos - mat_buffer.frustum.point_sides);
+	float lod_f = pow(distance, lod_pow);
 	
-	return uint(floor(mix(0.f, lod_info.lod_count, distance/(lod_info.lod_count * 4))));
+	return uint(clamp(lod_f, 0.f, lod_info.lod_count - 1));
 }
 
 void main()
@@ -82,16 +84,17 @@ void main()
 	uint instance_index = gl_WorkGroupID.y;
 	uint meshlet_index = 32 * gl_WorkGroupID.x + gl_LocalInvocationIndex;
 
-	if (meshlet_index >= max_meshlet_count) {
-		return;
-	}
-
 	// Choose LOD model
 	uint lod = calculate_lod(instance_index);
-	meshlet_index += lod_info.lod_meshlet_offsets[lod];
+
+	uint meshlet_offset = lod_info.lod_meshlet_offsets[lod];
+
+	meshlet_index += meshlet_offset;
 	uint meshlet_count = lod_info.lod_meshlet_counts[lod];
 
-	debugPrintfEXT("LOD: %d, mi: %d\n", lod, meshlet_index);
+	if (meshlet_index >= meshlet_offset + meshlet_count) {
+		return;
+	}
 
 	payload.instance_index = instance_index;
 	payload.meshlet_indices[gl_LocalInvocationIndex] = meshlet_index;

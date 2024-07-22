@@ -7,20 +7,17 @@
 
 struct FragmentPC {
     glm::vec3 diffusion_color;
-    bool is_meshlet_view_on;
+    uint32_t is_meshlet_view_on; // Have to have it as an integer since bools in GLSL are 32-bit.
     alignas(16) glm::vec3 ambient_color;
     alignas(16) glm::vec3 specular_color;
     alignas(16) glm::vec3 direction;
     alignas(16) glm::vec3 cam_pos;
-    glm::vec3 cam_view_dir;
+    alignas(16) glm::vec3 cam_view_dir;
 };
 
-struct MeshPC {
+struct LodPC {
     glm::mat4 rotation_mat = glm::identity<glm::mat4>();
     glm::mat4 scale_mat = glm::identity<glm::mat4>();
 	uint32_t meshlet_count = 0;
-};
-
-struct InstancePC {
-	uint32_t instanceCount;
+	float lod_pow = 0.65;
 };

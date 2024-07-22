@@ -77,7 +77,7 @@ class MeshApplication
 
     FragmentPC fragment_pc = {
         .diffusion_color = glm::vec3(1.f),
-        .is_meshlet_view_on = false,
+        .is_meshlet_view_on = 0,
         .ambient_color = glm::vec3(1.f),
         .specular_color = glm::vec3(1.f),
         .direction = glm::vec3(1.f),

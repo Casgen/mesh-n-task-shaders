@@ -77,7 +77,7 @@ class LODApplication
 
     glm::vec2 angles = {0.f, 0.f};
 
-    MeshPC mesh_pc;
+    LodPC lod_pc;
 
 	glm::uvec3 m_InstanceSize = glm::uvec3(20);
 	const uint32_t m_InstanceCountMax = m_InstanceSize.x * m_InstanceSize.y * m_InstanceSize.z;
@@ -85,7 +85,7 @@ class LODApplication
 
     FragmentPC fragment_pc = {
         .diffusion_color = glm::vec3(1.f),
-        .is_meshlet_view_on = false,
+        .is_meshlet_view_on = 0,
         .ambient_color = glm::vec3(1.f),
         .specular_color = glm::vec3(1.f),
         .direction = glm::vec3(1.f),

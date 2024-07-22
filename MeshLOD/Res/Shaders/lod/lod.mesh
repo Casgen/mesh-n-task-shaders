@@ -110,8 +110,6 @@ void main()
 
 	uint index = payload.meshlet_indices[gl_WorkGroupID.x];
 
-	debugPrintfEXT("mi: %d\n", index);
-
 	s_meshlet meshlet = meshlet_buffer.meshlets[index];
 
 	SetMeshOutputsEXT(meshlet.vertex_count, meshlet.triangle_count);

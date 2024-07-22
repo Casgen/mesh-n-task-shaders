@@ -112,10 +112,10 @@ void LODApplication::InitializeModelPipeline()
 {
 
 
-    m_Model = new LODModel("MeshLOD/Res/Artwork/OBJs/cube_lod0.obj");
+    m_Model = new LODModel("MeshLOD/Res/Artwork/OBJs/kitten_lod0.obj");
 
     const std::vector<VkCore::ShaderData> shaders =
-        VkCore::ShaderLoader::LoadMeshShaders("MeshLOD/Res/Shaders/lod");
+        VkCore::ShaderLoader::LoadMeshShaders("MeshLOD/Res/Shaders/lod", false);
 
     // Pipeline
     VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice(), true);
@@ -131,7 +131,7 @@ void LODApplication::InitializeModelPipeline()
                           .AddDescriptorLayout(m_Model->GetMeshSetLayout(0))
                           .AddDescriptorLayout(m_InstancesDescSetLayout)
                           .AddPushConstantRange<FragmentPC>(vk::ShaderStageFlagBits::eFragment)
-                          .AddPushConstantRange<MeshPC>(
+                          .AddPushConstantRange<LodPC>(
                               vk::ShaderStageFlagBits::eMeshEXT | vk::ShaderStageFlagBits::eTaskEXT, sizeof(FragmentPC))
                           .SetPrimitiveAssembly(vk::PrimitiveTopology::eTriangleList)
                           .AddDynamicState(vk::DynamicState::eScissor)
@@ -331,7 +331,7 @@ void LODApplication::DrawFrame()
 
         commandBuffer.pushConstants(m_ModelPipelineLayout,
                                     vk::ShaderStageFlagBits::eMeshNV | vk::ShaderStageFlagBits ::eTaskEXT,
-                                    sizeof(FragmentPC), sizeof(MeshPC), &mesh_pc);
+                                    sizeof(FragmentPC), sizeof(LodPC), &lod_pc);
 
         for (uint32_t i = 0; i < m_Model->GetMeshCount(); i++)
         {
@@ -340,7 +340,7 @@ void LODApplication::DrawFrame()
             const vk::DescriptorSetLayout layout = mesh.GetDescriptorSetLayout();
             const vk::DescriptorSet set = mesh.GetDescriptorSet();
 
-            mesh_pc.meshlet_count = 1;//mesh.GetMeshInfo().lodMeshletCount[0];
+            lod_pc.meshlet_count = mesh.GetMeshInfo().lodMeshletCount[0];
 
             commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_ModelPipelineLayout, 1, 1, &set, 0,
                                              nullptr);
@@ -348,7 +348,7 @@ void LODApplication::DrawFrame()
 #ifndef VK_MESH_EXT
             vkCmdDrawMeshTasksNv(&*commandBuffer, mesh.GetMeshletCount(), 0);
 #else
-            vkCmdDrawMeshTasksEXT(&*commandBuffer, (1 / 32) + 1,
+            vkCmdDrawMeshTasksEXT(&*commandBuffer, (mesh.GetMeshInfo().lodMeshletCount[0] / 32) + 1,
                                   m_InstanceCount, 1);
 #endif
         }
@@ -408,6 +408,9 @@ void LODApplication::DrawFrame()
         {
 			ImGui::Text("Instance Count");
 			ImGui::SliderInt("##Instance Count", &m_InstanceCount, 0, (int)m_InstanceCountMax, "%d", ImGuiSliderFlags_AlwaysClamp);
+
+			ImGui::Text("LOD Exponent");
+			ImGui::SliderFloat("##LOD Exponent", &lod_pc.lod_pow, 0, 1.f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
 	
             ImGui::Text("Posses Preview Camera");
             ImGui::SameLine();
@@ -614,8 +617,8 @@ bool LODApplication::OnMouseMoved(MouseMovedEvent& event)
 
         angles += static_cast<glm::vec2>(diff) * 0.01f;
 
-        mesh_pc.rotation_mat = glm::rotate(glm::identity<glm::mat4>(), angles.x, {0.f, 1.f, 0.f});
-        mesh_pc.rotation_mat = glm::rotate(mesh_pc.rotation_mat, angles.y, {-1.f, 0.f, 0.f});
+        lod_pc.rotation_mat = glm::rotate(glm::identity<glm::mat4>(), angles.x, {0.f, 1.f, 0.f});
+        lod_pc.rotation_mat = glm::rotate(lod_pc.rotation_mat, angles.y, {-1.f, 0.f, 0.f});
     }
 
     m_MouseState.UpdatePosition(event.GetPos());
@@ -687,7 +690,7 @@ bool LODApplication::OnKeyPressed(KeyPressedEvent& event)
         m_CurrentCamera->SetIsMovingDown(true);
         return true;
     case GLFW_KEY_M:
-        fragment_pc.is_meshlet_view_on = !fragment_pc.is_meshlet_view_on;
+        fragment_pc.is_meshlet_view_on = !fragment_pc.is_meshlet_view_on ;
         LOGF(Application, Verbose, "Meshlet view is %d", fragment_pc.is_meshlet_view_on)
     default:
         return false;
