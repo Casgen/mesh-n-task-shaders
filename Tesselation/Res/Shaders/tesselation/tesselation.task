@@ -12,10 +12,8 @@ layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
 
 struct SharedData
 {
-	vec2 patch_coord;
 	vec2 vert_coords[MAX_VERTICES];
 	vec2 vert_uvs[MAX_VERTICES];
-	vec4 scale;
 	uint triangles[MAX_TRIANGLES];
 };
 
@@ -60,21 +58,39 @@ uint packTriangle(const uint a, const uint b, const uint c) {
 void main()
 {
 	uint grid_count = uint(sqrt(float(gl_NumWorkGroups.z)));
-	vec2 grid_coord = vec2(gl_WorkGroupID.z % grid_count, gl_WorkGroupID.z / grid_count);
 
-	vec4 scale = vec4(-u_scale, -u_scale, u_scale, u_scale);
-	vec2 range = vec2(scale.z - scale.x, scale.w - scale.y);
+	vec4 grid = vec4(-u_scale, -u_scale, u_scale, u_scale); // (x1, y1, x2, y2)
+	vec2 range = vec2(grid.z - grid.x, grid.w - grid.y);
+
+	if (grid_count > 1) {
+
+
+		vec4 scaled_grid = grid * grid_count;
+		//debugPrintfEXT("Diff: %v2f\n", grid_diff);
+
+		vec4 bottom_left_grid = vec4(scaled_grid.xy, scaled_grid.xy + range);
+
+		vec2 grid_coord = vec2(gl_WorkGroupID.z % grid_count, gl_WorkGroupID.z / grid_count);
+
+		grid = vec4(
+			bottom_left_grid.x + (grid_coord.x * range.x),
+			bottom_left_grid.y + (grid_coord.y * range.y),
+			bottom_left_grid.z + (grid_coord.x * range.x),
+			bottom_left_grid.w + (grid_coord.y * range.y)
+		);
+	}
+
+	// debugPrintfEXT("Grid: %v4f, id: %d\n", grid, gl_WorkGroupID.z);
+
 
 	uvec2 tess_num = gl_WorkGroupID.xy;
 	uint thread_id = gl_LocalInvocationIndex;
 	
 	vec2 t = vec2(tess_num) / vec2(gl_NumWorkGroups.xy);
-	vec2 patch_coord = mix(scale.xy, scale.zw, t);
+	vec2 patch_coord = mix(grid.xy, grid.zw, t);
 
-	vec2 patch_size = (scale.zw - scale.xy) / gl_NumWorkGroups.xy;
+	vec2 patch_size = (grid.zw - grid.xy) / gl_NumWorkGroups.xy;
 
-	payload.patch_coord = patch_coord;
-	payload.scale = scale;
 
 	vec2 square_size = patch_size / vec2(squares_per_side.x, squares_per_side.y);
 
@@ -86,7 +102,7 @@ void main()
 		vec2 vertex_pos = patch_coord + square_size * vertex_id;
 
 		payload.vert_coords[i] = vertex_pos;
-		payload.vert_uvs[i] = vertex_pos * vec2(1.f)/range + 0.5f;
+		payload.vert_uvs[i] =  (vertex_pos - grid.xy) / (grid.zw - grid.xy);
 	}
 
 	// Create triangles

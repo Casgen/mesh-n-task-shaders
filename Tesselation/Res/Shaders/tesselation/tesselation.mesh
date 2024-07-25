@@ -12,10 +12,8 @@ layout(max_vertices=64, max_primitives=126) out;
 
 struct SharedData
 {
-	vec2 patch_coord;
 	vec2 vert_coords[MAX_VERTICES];
 	vec2 vert_uvs[MAX_VERTICES];
-	vec4 scale;
 	uint triangles[98];
 };
 

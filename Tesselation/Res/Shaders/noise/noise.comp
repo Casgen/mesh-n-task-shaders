@@ -124,7 +124,7 @@ void main() {
 	ivec2 resolution = imageSize(heightImage);
 	ivec2 texel_coord = ivec2(gl_GlobalInvocationID.xy);
 
-	vec2 st = vec2(gl_GlobalInvocationID.xy) / vec2(resolution);
+	vec2 st = fract(vec2(gl_GlobalInvocationID.xy) / vec2(resolution));
 
 	float noise = fbmPerlinNoise(st * 5.f);
 
@@ -134,15 +134,10 @@ void main() {
 
 	vec2 diff = vec2(1.f) / resolution.xy;
 
-	float p1 = fbmPerlinNoise((st * 5.f + vec2(diff.x, 0.f)));
-	float p2 = fbmPerlinNoise((st * 5.f - vec2(diff.x, 0.f)));
-	float p3 = fbmPerlinNoise((st * 5.f + vec2(0.f, diff.y)));
-	float p4 = fbmPerlinNoise((st * 5.f - vec2(0.f, diff.y)));
-
-	// float p1 = pnoise(vec3((st + vec2(diff.x, 0.f)) * 5.f, u_time * u_speed), vec3(3.4f, 2.4f, 1.4f)) * u_height;
-	// float p2 = pnoise(vec3((st - vec2(diff.x, 0.f)) * 5.f, u_time * u_speed), vec3(3.4f, 2.4f, 1.4f)) * u_height;
-	// float p3 = pnoise(vec3((st + vec2(0.f, diff.y)) * 5.f, u_time * u_speed), vec3(3.4f, 2.4f, 1.4f)) * u_height;
-	// float p4 = pnoise(vec3((st - vec2(0.f, diff.y)) * 5.f, u_time * u_speed), vec3(3.4f, 2.4f, 1.4f)) * u_height;
+	float p1 = fbmPerlinNoise(mod(st * 5.f + vec2(diff.x, 0.f),5.f));
+	float p2 = fbmPerlinNoise(mod(st * 5.f - vec2(diff.x, 0.f),5.f));
+	float p3 = fbmPerlinNoise(mod(st * 5.f + vec2(0.f, diff.y),5.f));
+	float p4 = fbmPerlinNoise(mod(st * 5.f - vec2(0.f, diff.y),5.f));
 
 	vec3 normal = normalize(vec3(p1 - p2, p3 - p4, 0.001f * u_height));
 

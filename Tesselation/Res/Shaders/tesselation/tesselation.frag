@@ -27,7 +27,7 @@ void main() {
     
     float diffuse = max(dot(tex_normal, normalize(u_light_dir)), 0.f);
 
-    vec3 ambient = 0.01f * u_light_color_amb;
+    vec3 ambient = 0.2f * u_light_color_amb;
     
     float specular = 0.f;
     float specular_light = 1.f;
@@ -42,5 +42,5 @@ void main() {
         specular = spec_amount * specular_light;
     }
 
-    o_color = vec4(diffuse + ambient + specular, 1.0f) * vec4(0.1f, 0.3f, 0.5f, 0.5f);
+    o_color = vec4(diffuse + ambient + specular, 1.0f) * vec4(0.1f, 0.3f, 0.8f, 1.f);
 }

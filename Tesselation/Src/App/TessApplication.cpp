@@ -291,39 +291,12 @@ void TessApplication::DrawFrame()
 #ifndef VK_MESH_EXT
         vkCmdDrawMeshTasksNv(&*commandBuffer, mesh.GetMeshletCount(), 0);
 #else
-        vkCmdDrawMeshTasksEXT(&*commandBuffer, m_PatchCounts.x, m_PatchCounts.y, 1);
+        vkCmdDrawMeshTasksEXT(&*commandBuffer, m_PatchCounts.x, m_PatchCounts.y, m_GridSize * m_GridSize);
 #endif
 
         durationQuery.EndTimestamp(commandBuffer, vk::PipelineStageFlagBits::eFragmentShader);
     }
 
-    // {
-    //     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_BoundsPipeline);
-    //     commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_BoundsPipelineLayout, 0, 1,
-    //                                      &m_MatrixDescriptorSets[imageIndex], 0, nullptr);
-    //
-    //     commandBuffer.bindVertexBuffers(0, m_Sphere.m_Vertexbuffer.GetVkBuffer(), {0});
-    //     commandBuffer.bindIndexBuffer(m_Sphere.m_IndexBuffer.GetVkBuffer(), 0, vk::IndexType::eUint32);
-    //
-    //     for (const Mesh& mesh : m_Model->GetMeshes())
-    //     {
-    //         const vk::DescriptorSet& set = mesh.GetDescriptorSet();
-    //         commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_BoundsPipelineLayout, 1, 1, &set, 0,
-    //                                          nullptr);
-    //         commandBuffer.drawIndexed(m_Sphere.indices.size(), mesh.GetMeshletCount(), 0, 0, 0);
-    //     }
-    // }
-
-    {
-        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_AxisPipeline);
-        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_AxisPipelineLayout, 0, 1,
-                                         &m_MatrixDescriptorSets[imageIndex], 0, nullptr);
-
-        commandBuffer.bindVertexBuffers(0, m_AxisBuffer.GetVkBuffer(), {0});
-
-        commandBuffer.bindIndexBuffer(m_AxisIndexBuffer.GetVkBuffer(), 0, vk::IndexType::eUint32);
-        commandBuffer.drawIndexed(6, 1, 0, 0, 0);
-    }
 
     {
         m_Renderer.ImGuiNewFrame(m_Window->GetWidth(), m_Window->GetHeight());
@@ -345,6 +318,9 @@ void TessApplication::DrawFrame()
 
             ImGui::Text("Grid Scale");
             ImGui::DragFloat("##Grid Scale", &tess_pc.scale, 0.01f, 0.f, 30.f, "x%.3f", ImGuiSliderFlags_AlwaysClamp);
+
+            ImGui::Text("Grid Size");
+            ImGui::DragInt("##Grid Size", &m_GridSize, 0.1f, 1, 10, "%d", ImGuiSliderFlags_AlwaysClamp);
 
             ImGui::Text("Speed");
             ImGui::DragFloat("##Speed", &noise_pc.speed, 0.01f, 0.f, 8.f, "x%.3f", ImGuiSliderFlags_AlwaysClamp);

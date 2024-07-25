@@ -76,6 +76,7 @@ class TessApplication
     VkPolygonMode m_PolygonMode = VK_POLYGON_MODE_FILL;
     bool m_EnableLineMode = false;
     uint64_t m_Duration = 0;
+	int32_t m_GridSize = 1;
 
 	const uint32_t m_NoiseResolution = 2048;
 
