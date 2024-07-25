@@ -132,6 +132,7 @@ void TessApplication::InitializeTessPipeline()
                           .AddDescriptorLayout(m_MatrixDescSetLayout)
                           .AddDescriptorLayout(m_MeshNoiseSetLayout)
                           .AddPushConstantRange<FragmentPC>(vk::ShaderStageFlagBits::eFragment)
+                          .AddPushConstantRange<TessPC>(vk::ShaderStageFlagBits::eTaskEXT)
                           .SetPrimitiveAssembly(vk::PrimitiveTopology::eTriangleList)
                           .AddDynamicState(vk::DynamicState::eScissor)
                           .AddDynamicState(vk::DynamicState::eViewport)
@@ -280,6 +281,9 @@ void TessApplication::DrawFrame()
         commandBuffer.pushConstants(m_WaterPipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, sizeof(FragmentPC),
                                     &fragment_pc);
 
+        commandBuffer.pushConstants(m_WaterPipelineLayout, vk::ShaderStageFlagBits::eTaskEXT, sizeof(FragmentPC), sizeof(TessPC),
+                                    &tess_pc);
+
         durationQuery.StartTimestamp(commandBuffer, vk::PipelineStageFlagBits::eTaskShaderEXT);
 
         vkCmdSetPolygonModeEXT(&*commandBuffer, m_PolygonMode);
@@ -340,7 +344,7 @@ void TessApplication::DrawFrame()
                             ImGuiSliderFlags_AlwaysClamp);
 
             ImGui::Text("Grid Scale");
-            ImGui::DragFloat("##Grid Scale", &noise_pc.scale, 0.01f, 0.f, 30.f, "x%.3f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::DragFloat("##Grid Scale", &tess_pc.scale, 0.01f, 0.f, 30.f, "x%.3f", ImGuiSliderFlags_AlwaysClamp);
 
             ImGui::Text("Speed");
             ImGui::DragFloat("##Speed", &noise_pc.speed, 0.01f, 0.f, 8.f, "x%.3f", ImGuiSliderFlags_AlwaysClamp);

@@ -41,12 +41,14 @@ layout (binding = 0) uniform MatrixBuffer {
 	Frustum frustum;
 } mat_buffer;
 
+layout (push_constant, std430) uniform TessPC {
+	layout (offset = 96) float u_scale;
+};
+
 taskPayloadSharedEXT SharedData payload;
 
 
 // Represents the coords in the XY plane. vec4(x1, y1, x2, y2)
-vec4 scale = vec4(-1.f, -1.f, 1.f, 1.f);
-vec2 range = vec2(scale.z - scale.x, scale.w - scale.y);
 
 uvec2 verts_per_side = uvec2(uint(sqrt(MAX_VERTICES)));
 uvec2 squares_per_side = uvec2(uint(sqrt(MAX_VERTICES)) - 1);
@@ -57,9 +59,14 @@ uint packTriangle(const uint a, const uint b, const uint c) {
 
 void main()
 {
+	uint grid_count = uint(sqrt(float(gl_NumWorkGroups.z)));
+	vec2 grid_coord = vec2(gl_WorkGroupID.z % grid_count, gl_WorkGroupID.z / grid_count);
+
+	vec4 scale = vec4(-u_scale, -u_scale, u_scale, u_scale);
+	vec2 range = vec2(scale.z - scale.x, scale.w - scale.y);
+
 	uvec2 tess_num = gl_WorkGroupID.xy;
 	uint thread_id = gl_LocalInvocationIndex;
-
 	
 	vec2 t = vec2(tess_num) / vec2(gl_NumWorkGroups.xy);
 	vec2 patch_coord = mix(scale.xy, scale.zw, t);

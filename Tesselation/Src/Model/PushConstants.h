@@ -20,12 +20,11 @@ struct NoisePC {
 	float time;
 	float speed;
 	float height;
-	float scale;
 	int octaves;
 };
 
 struct TessPC {
-	glm::uvec2 patch_count = glm::uvec2(0.f, 0.f);
+	float scale;
 };
 
 struct InstancePC {

@@ -79,11 +79,14 @@ class TessApplication
 
 	const uint32_t m_NoiseResolution = 2048;
 
+	TessPC tess_pc = {
+		.scale = 1.f
+	};
+
     NoisePC noise_pc = {
         .time = 0.f,
         .speed = 1.f,
         .height = 1.f,
-        .scale = 1.f,
 		.octaves = 1,
     };
 
