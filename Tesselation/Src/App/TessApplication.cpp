@@ -110,13 +110,25 @@ void TessApplication::InitializeTessPipeline()
 
     VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice(), true);
 
+    vk::PipelineColorBlendAttachmentState blendAttachment;
+
+    blendAttachment.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+                                     vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
+    blendAttachment.blendEnable = true;
+    blendAttachment.srcColorBlendFactor = vk::BlendFactor::eSrcAlpha;
+    blendAttachment.dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha;
+    blendAttachment.colorBlendOp = vk::BlendOp::eAdd;
+    blendAttachment.srcAlphaBlendFactor = vk::BlendFactor::eOne;
+    blendAttachment.dstAlphaBlendFactor = vk::BlendFactor::eZero;
+    blendAttachment.alphaBlendOp = vk::BlendOp::eAdd;
+
     m_WaterPipeline = pipelineBuilder.BindShaderModules(shaders)
                           .BindRenderPass(m_Renderer.m_RenderPass.GetVkRenderPass())
                           .EnableDepthTest()
                           .AddViewport(glm::uvec4(0, 0, m_Window->GetWidth(), m_Window->GetHeight()))
                           .FrontFaceDirection(vk::FrontFace::eClockwise)
                           .SetCullMode(vk::CullModeFlagBits::eNone)
-                          .AddDisabledBlendAttachment()
+                          .AddBlendAttachment(blendAttachment)
                           .AddDescriptorLayout(m_MatrixDescSetLayout)
                           .AddDescriptorLayout(m_MeshNoiseSetLayout)
                           .AddPushConstantRange<FragmentPC>(vk::ShaderStageFlagBits::eFragment)
@@ -140,7 +152,8 @@ void TessApplication::InitializeNoisePipeline()
     vk::DescriptorImageInfo descHeight = m_NoiseHeight.CreateDescriptorImageInfo(vk::ImageLayout::eGeneral);
     vk::DescriptorImageInfo descNormals = m_NoiseNormals.CreateDescriptorImageInfo(vk::ImageLayout::eGeneral);
 
-	// Have to create 2 types of descriptor sets. One for the compute storage image and other for sampling (reading as a texture).
+    // Have to create 2 types of descriptor sets. One for the compute storage image and other for sampling (reading as a
+    // texture).
     m_DescriptorBuilder.BindImage(0, descHeight, vk::DescriptorType::eStorageImage, vk::ShaderStageFlagBits::eCompute)
         .BindImage(1, descNormals, vk::DescriptorType::eStorageImage, vk::ShaderStageFlagBits::eCompute)
         .Build(m_ComputeNoiseSet, m_ComputeNoiseSetLayout);
@@ -234,8 +247,8 @@ void TessApplication::DrawFrame()
 
     {
         commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, m_ComputePipeline);
-        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, m_ComputePipelineLayout, 0, 1, &m_ComputeNoiseSet, 0,
-                                         nullptr);
+        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, m_ComputePipelineLayout, 0, 1,
+                                         &m_ComputeNoiseSet, 0, nullptr);
         commandBuffer.pushConstants(m_ComputePipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(NoisePC),
                                     &noise_pc);
 
@@ -261,8 +274,8 @@ void TessApplication::DrawFrame()
         commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_WaterPipelineLayout, 0, 1,
                                          &m_MatrixDescriptorSets[imageIndex], 0, nullptr);
 
-        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_WaterPipelineLayout, 1, 1, &m_MeshNoiseSet, 0,
-                                         nullptr);
+        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_WaterPipelineLayout, 1, 1, &m_MeshNoiseSet,
+                                         0, nullptr);
 
         commandBuffer.pushConstants(m_WaterPipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, sizeof(FragmentPC),
                                     &fragment_pc);
@@ -327,20 +340,16 @@ void TessApplication::DrawFrame()
                             ImGuiSliderFlags_AlwaysClamp);
 
             ImGui::Text("Grid Scale");
-            ImGui::DragFloat("##Grid Scale", &noise_pc.scale, 0.01f, 0.f, 30.f, "x%.3f",
-                            ImGuiSliderFlags_AlwaysClamp);
+            ImGui::DragFloat("##Grid Scale", &noise_pc.scale, 0.01f, 0.f, 30.f, "x%.3f", ImGuiSliderFlags_AlwaysClamp);
 
             ImGui::Text("Speed");
-            ImGui::DragFloat("##Speed", &noise_pc.speed, 0.01f, 0.f, 8.f, "x%.3f",
-                            ImGuiSliderFlags_AlwaysClamp);
+            ImGui::DragFloat("##Speed", &noise_pc.speed, 0.01f, 0.f, 8.f, "x%.3f", ImGuiSliderFlags_AlwaysClamp);
 
             ImGui::Text("Octaves");
-            ImGui::DragInt("##Octaves", &noise_pc.octaves, 0.1f, 1, 10, "%d",
-                            ImGuiSliderFlags_AlwaysClamp);
+            ImGui::DragInt("##Octaves", &noise_pc.octaves, 0.1f, 1, 10, "%d", ImGuiSliderFlags_AlwaysClamp);
 
             ImGui::Text("Height");
-            ImGui::DragFloat("##Height", &noise_pc.height, 0.01f, 0.f, 4.f, "x%.3f",
-                            ImGuiSliderFlags_AlwaysClamp);
+            ImGui::DragFloat("##Height", &noise_pc.height, 0.01f, 0.f, 4.f, "x%.3f", ImGuiSliderFlags_AlwaysClamp);
 
             ImGui::Text("Enable Line Mode");
             ImGui::SameLine();
@@ -513,7 +522,7 @@ bool TessApplication::OnMouseMoved(MouseMovedEvent& event)
 bool TessApplication::OnMouseRelease(MouseButtonEvent& event)
 {
 
-    if (ImGui::GetIO().WantCaptureMouse)
+    if (ImGui::GetIO().WantCaptureMouse && !m_MouseState.m_IsRMBPressed)
     {
         ImGui_ImplGlfw_MouseButtonCallback(m_Window->GetGLFWWindow(), event.GetKeyCode(), GLFW_RELEASE, 0);
         return true;

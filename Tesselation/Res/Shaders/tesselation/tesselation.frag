@@ -42,5 +42,5 @@ void main() {
         specular = spec_amount * specular_light;
     }
 
-    o_color = vec4(diffuse + ambient + specular, 1.0f) * vec4(0.1f, 0.3f, 0.5f, 1.f);
+    o_color = vec4(diffuse + ambient + specular, 1.0f) * vec4(0.1f, 0.3f, 0.5f, 0.5f);
 }
