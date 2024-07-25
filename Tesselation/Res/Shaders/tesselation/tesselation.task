@@ -1,0 +1,104 @@
+#version 460
+
+#extension GL_EXT_mesh_shader : require
+#extension GL_EXT_debug_printf : enable
+#extension GL_KHR_shader_subgroup_ballot : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+
+#define MAX_VERTICES 64
+#define MAX_TRIANGLES 98
+
+struct SharedData
+{
+	vec2 patch_coord;
+	vec2 vert_coords[MAX_VERTICES];
+	vec2 vert_uvs[MAX_VERTICES];
+	vec4 scale;
+	uint triangles[MAX_TRIANGLES];
+};
+
+struct Frustum {
+	vec3 left;
+	vec3 right;
+	vec3 top;
+	vec3 bottom;
+	vec3 front;
+	vec3 back;
+	vec3 point_sides;
+	vec3 point_front; vec3 point_back;
+	vec3 side_vec;
+	float azimuth;
+	float zenith;
+};
+
+
+layout (binding = 0) uniform MatrixBuffer {
+    mat4 model;
+    mat4 view;
+    mat4 proj;
+	Frustum frustum;
+} mat_buffer;
+
+taskPayloadSharedEXT SharedData payload;
+
+
+// Represents the coords in the XY plane. vec4(x1, y1, x2, y2)
+vec4 scale = vec4(-1.f, -1.f, 1.f, 1.f);
+vec2 range = vec2(scale.z - scale.x, scale.w - scale.y);
+
+uvec2 verts_per_side = uvec2(uint(sqrt(MAX_VERTICES)));
+uvec2 squares_per_side = uvec2(uint(sqrt(MAX_VERTICES)) - 1);
+
+uint packTriangle(const uint a, const uint b, const uint c) {
+	return (a & 0xFF) | ((b & 0xFF) << 8) | ((c & 0xFF) << 16);
+}
+
+void main()
+{
+	uvec2 tess_num = gl_WorkGroupID.xy;
+	uint thread_id = gl_LocalInvocationIndex;
+
+	
+	vec2 t = vec2(tess_num) / vec2(gl_NumWorkGroups.xy);
+	vec2 patch_coord = mix(scale.xy, scale.zw, t);
+
+	vec2 patch_size = (scale.zw - scale.xy) / gl_NumWorkGroups.xy;
+
+	payload.patch_coord = patch_coord;
+	payload.scale = scale;
+
+	vec2 square_size = patch_size / vec2(squares_per_side.x, squares_per_side.y);
+
+	// Create the vertices
+	for (uint i = thread_id; i < MAX_VERTICES; i += 32) {
+		
+		uvec2 vertex_id = uvec2(i % verts_per_side.x, i / verts_per_side.y);
+
+		vec2 vertex_pos = patch_coord + square_size * vertex_id;
+
+		payload.vert_coords[i] = vertex_pos;
+		payload.vert_uvs[i] = vertex_pos * vec2(1.f)/range + 0.5f;
+	}
+
+	// Create triangles
+	for (uint i = thread_id; i < MAX_TRIANGLES; i += 32) {
+
+		bool isEven = i % 2 == 0;
+		uint baseVertex = i / 2;
+
+		uint a = baseVertex + uint(baseVertex / squares_per_side.x);
+		uint b = a + 1;
+		uint c = a + 1 + verts_per_side.x;
+		uint d = a + verts_per_side.x;
+
+		uint indices[3] = uint[3](b, c, d); 
+
+		payload.triangles[i] = packTriangle(a, indices[0 + uint(isEven)], indices[1 + uint(isEven)]);
+	}
+
+	if (subgroupElect()) {
+		EmitMeshTasksEXT(1, 1, 1);
+	}
+}

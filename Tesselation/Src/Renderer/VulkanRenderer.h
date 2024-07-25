@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdint>
 #include <vector>
 
 #include "Platform/Window.h"
@@ -40,6 +39,9 @@ class VulkanRenderer
 	void BeginRenderPass(const vk::ClearColorValue& clearValue, const uint32_t width, const uint32_t height);
 
     uint32_t EndDraw();
+
+	uint32_t EndCmdBuffer();
+	void EndRenderPass();
 
     void Shutdown();
 

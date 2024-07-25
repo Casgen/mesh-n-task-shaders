@@ -32,6 +32,7 @@
 #include "vulkan/vulkan_handles.hpp"
 #include "vulkan/vulkan_structs.hpp"
 #include "glm/gtc/type_ptr.hpp"
+#include "../../Common/Query.h"
 
 void LODApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 {
@@ -275,6 +276,7 @@ void LODApplication::DrawFrame()
 
     uint32_t imageIndex = m_Renderer.AcquireNextImage();
 
+
     if (imageIndex == -1)
     {
         m_FramebufferResized = true;
@@ -305,11 +307,17 @@ void LODApplication::DrawFrame()
     fragment_pc.cam_pos = m_CurrentCamera->GetPosition();
     fragment_pc.cam_view_dir = m_CurrentCamera->GetViewDirection();
 
-    m_Renderer.BeginDraw({0.3f, 0.f, 0.2f, 1.f}, m_Window->GetWidth(), m_Window->GetHeight());
-
     m_MatBuffers[imageIndex].UpdateData(&ubo);
 
+	m_Renderer.BeginCmdBuffer();
     vk::CommandBuffer commandBuffer = m_Renderer.GetCurrentCmdBuffer();
+
+	DurationQuery durationQuery;
+
+	durationQuery.Reset(commandBuffer);
+
+    m_Renderer.BeginRenderPass({0.3f, 0.f, 0.2f, 1.f}, m_Window->GetWidth(), m_Window->GetHeight());
+
 
     vk::Rect2D scissor = vk::Rect2D({0, 0}, {m_Window->GetWidth(), m_Window->GetHeight()});
     commandBuffer.setScissor(0, 1, &scissor);
@@ -333,6 +341,8 @@ void LODApplication::DrawFrame()
                                     vk::ShaderStageFlagBits::eMeshNV | vk::ShaderStageFlagBits ::eTaskEXT,
                                     sizeof(FragmentPC), sizeof(LodPC), &lod_pc);
 
+		durationQuery.StartTimestamp(commandBuffer, vk::PipelineStageFlagBits::eTaskShaderEXT);
+
         for (uint32_t i = 0; i < m_Model->GetMeshCount(); i++)
         {
 			LODMesh& mesh = m_Model->GetMesh(i);
@@ -352,6 +362,8 @@ void LODApplication::DrawFrame()
                                   m_InstanceCount, 1);
 #endif
         }
+
+		durationQuery.EndTimestamp(commandBuffer, vk::PipelineStageFlagBits::eFragmentShader);
     }
 
     // {
@@ -404,8 +416,10 @@ void LODApplication::DrawFrame()
                                 ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize(ImVec2(200, 200), ImGuiCond_FirstUseEver);
 
+
         if (ImGui::Begin("Instancing", &open))
         {
+            ImGui::Text("Task/Mesh Shader execution in ms: %.4f", m_Duration / 1000000.f);
 			ImGui::Text("Instance Count");
 			ImGui::SliderInt("##Instance Count", &m_InstanceCount, 0, (int)m_InstanceCountMax, "%d", ImGuiSliderFlags_AlwaysClamp);
 
@@ -434,6 +448,7 @@ void LODApplication::DrawFrame()
 
             if (!m_PossesCamera)
             {
+				
                 ImGui::Text("Zenith");
                 if (ImGui::SliderAngle("##Zenith", &m_ZenithAngle, 90, -90))
                 {
@@ -441,6 +456,7 @@ void LODApplication::DrawFrame()
                 };
 
                 ImGui::Text("Sweep Zenith");
+
                 ImGui::SameLine();
                 ImGui::Checkbox("##Sweep Zenith", &m_ZenithSweepEnabled);
 
@@ -468,6 +484,7 @@ void LODApplication::DrawFrame()
     }
 
     uint32_t endDrawResult = m_Renderer.EndDraw();
+	m_Duration = durationQuery.GetResults();
 
     if (endDrawResult == -1)
     {

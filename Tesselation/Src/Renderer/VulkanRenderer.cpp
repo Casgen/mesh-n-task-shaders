@@ -419,7 +419,7 @@ void VulkanRenderer::BeginCmdBuffer()
 {
     vk::CommandBufferBeginInfo cmdBufferBeginInfo{};
 
-	m_CommandBuffers[m_CurrentFrame].begin(cmdBufferBeginInfo);
+    m_CommandBuffers[m_CurrentFrame].begin(cmdBufferBeginInfo);
 }
 void VulkanRenderer::BeginRenderPass(const vk::ClearColorValue& clearValue, const uint32_t width, const uint32_t height)
 {
@@ -441,6 +441,7 @@ uint32_t VulkanRenderer::EndDraw()
 {
     vk::CommandBuffer commandBuffer = m_CommandBuffers[m_CurrentFrame];
     commandBuffer.endRenderPass();
+
     commandBuffer.end();
 
     vk::PipelineStageFlags dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
@@ -485,6 +486,59 @@ uint32_t VulkanRenderer::EndDraw()
 
     m_CurrentFrame = (m_CurrentFrame + 1) % m_Swapchain.GetNumberOfSwapBuffers();
     return 0;
+}
+
+uint32_t VulkanRenderer::EndCmdBuffer() {
+
+
+    vk::CommandBuffer commandBuffer = m_CommandBuffers[m_CurrentFrame];
+    commandBuffer.end();
+
+    vk::PipelineStageFlags dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+
+    vk::SubmitInfo submitInfo{};
+    submitInfo.setCommandBuffers(m_CommandBuffers[m_CurrentFrame])
+        .setWaitSemaphores(m_ImageAvailableSemaphores[m_CurrentFrame])
+        .setWaitDstStageMask(dstStageMask)
+        .setSignalSemaphores(m_RenderFinishedSemaphores[m_CurrentFrame]);
+
+    TRY_CATCH_BEGIN()
+
+    VkCore::DeviceManager::GetDevice().GetGraphicsQueue().submit(submitInfo, m_InFlightFences[m_CurrentFrame]);
+
+    TRY_CATCH_END()
+
+    vk::SwapchainKHR swapchain = m_Swapchain.GetVkSwapchain();
+
+    vk::PresentInfoKHR presentInfo{};
+    presentInfo.setWaitSemaphores(m_RenderFinishedSemaphores[m_CurrentFrame])
+        .setSwapchains(swapchain)
+        .setImageIndices(m_CurrentFrame)
+        .setPResults(nullptr);
+
+    try
+    {
+        const vk::Result presentResult = VkCore::DeviceManager::GetDevice().GetPresentQueue().presentKHR(presentInfo);
+    }
+    catch (vk::SystemError const& err)
+    {
+        const int32_t resultValue = err.code().value();
+
+        if (resultValue == (int)vk::Result::eErrorOutOfDateKHR)
+        {
+            return -1;
+        }
+        else if (resultValue != (int)vk::Result::eSuccess && resultValue != (int)vk::Result::eSuboptimalKHR)
+        {
+            throw std::runtime_error("Failed to acquire next swap chain image!");
+        }
+    }
+
+    m_CurrentFrame = (m_CurrentFrame + 1) % m_Swapchain.GetNumberOfSwapBuffers();
+    return 0;
+}
+void VulkanRenderer::EndRenderPass() {
+    m_CommandBuffers[m_CurrentFrame].endRenderPass();
 }
 
 void VulkanRenderer::Shutdown()

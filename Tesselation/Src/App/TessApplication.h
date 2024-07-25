@@ -6,19 +6,18 @@
 #include "Event/KeyEvent.h"
 #include "Event/MouseEvent.h"
 #include "Event/WindowEvent.h"
-#include "Mesh/LODModel.h"
-#include "Mesh/Model.h"
 #include "Model/Camera.h"
 #include "Model/MouseState.h"
-#include "Model/Structures/Sphere.h"
 #include "Vk/Descriptors/DescriptorBuilder.h"
 #include "vulkan/vulkan_core.h"
+#include "vulkan/vulkan_enums.hpp"
 #include "vulkan/vulkan_handles.hpp"
+#include "Vk/Texture/Image2D.h"
 
-class LODApplication
+class TessApplication
 {
   public:
-    LODApplication() {};
+    TessApplication() {};
 
     void Run(const uint32_t winWidth, const uint32_t winHeight);
 
@@ -26,11 +25,9 @@ class LODApplication
     void Loop();
     void Shutdown();
 
-    void InitializeModelPipeline();
+    void InitializeTessPipeline();
     void InitializeAxisPipeline();
-	void InitializeBoundsPipeline();
-	void InitializeFrustumPipeline();
-	void InitializeInstancing();
+    void InitializeNoisePipeline();
 
     void RecreateSwapchain();
 
@@ -39,7 +36,7 @@ class LODApplication
     bool OnMousePress(MouseButtonEvent& event);
     bool OnMouseMoved(MouseMovedEvent& event);
     bool OnMouseRelease(MouseButtonEvent& event);
-	bool OnMouseScrolled(MouseScrolledEvent& event);
+    bool OnMouseScrolled(MouseScrolledEvent& event);
 
     bool OnKeyPressed(KeyPressedEvent& event);
     bool OnKeyReleased(KeyReleasedEvent& event);
@@ -52,14 +49,11 @@ class LODApplication
     vk::Pipeline m_AxisPipeline;
     vk::PipelineLayout m_AxisPipelineLayout;
 
-    vk::Pipeline m_ModelPipeline;
-    vk::PipelineLayout m_ModelPipelineLayout;
+    vk::Pipeline m_WaterPipeline;
+    vk::PipelineLayout m_WaterPipelineLayout;
 
-	vk::Pipeline m_BoundsPipeline;
-	vk::PipelineLayout m_BoundsPipelineLayout;
-
-	vk::Pipeline m_FrustumPipeline;
-	vk::PipelineLayout m_FrustumPipelineLayout;
+    vk::Pipeline m_ComputePipeline;
+    vk::PipelineLayout m_ComputePipelineLayout;
 
     std::vector<VkCore::Buffer> m_MatBuffers;
     std::vector<vk::DescriptorSet> m_MatrixDescriptorSets;
@@ -68,24 +62,34 @@ class LODApplication
     VkCore::Buffer m_AxisBuffer;
     VkCore::Buffer m_AxisIndexBuffer;
 
-	VkCore::Buffer m_FrustumBuffer;
-	VkCore::Buffer m_FrustumIndexBuffer;
+    VkCore::Image2D m_NoiseHeight;
+    VkCore::Image2D m_NoiseNormals;
 
-	VkCore::Buffer m_InstancesBuffer;
-	vk::DescriptorSet m_InstancesDescSet;
-	vk::DescriptorSetLayout m_InstancesDescSetLayout;
+    vk::DescriptorSet m_ComputeNoiseSet;
+    vk::DescriptorSetLayout m_ComputeNoiseSetLayout;
 
-    glm::vec2 angles = {0.f, 0.f};
+    vk::DescriptorSet m_MeshNoiseSet;
+    vk::DescriptorSetLayout m_MeshNoiseSetLayout;
 
-    LodPC lod_pc;
+    // ImGui Params
+    glm::ivec2 m_PatchCounts = {5, 5};
+    VkPolygonMode m_PolygonMode = VK_POLYGON_MODE_FILL;
+    bool m_EnableLineMode = false;
+    uint64_t m_Duration = 0;
 
-	glm::uvec3 m_InstanceSize = glm::uvec3(20);
-	const uint32_t m_InstanceCountMax = m_InstanceSize.x * m_InstanceSize.y * m_InstanceSize.z;
+	const uint32_t m_NoiseResolution = 2048;
 
+    NoisePC noise_pc = {
+        .time = 0.f,
+        .speed = 1.f,
+        .height = 1.f,
+        .scale = 1.f,
+		.octaves = 1,
+    };
 
     FragmentPC fragment_pc = {
         .diffusion_color = glm::vec3(1.f),
-        .is_meshlet_view_on = 0,
+        .is_meshlet_view_on = false,
         .ambient_color = glm::vec3(1.f),
         .specular_color = glm::vec3(1.f),
         .direction = glm::vec3(1.f),
@@ -93,25 +97,13 @@ class LODApplication
         .cam_view_dir = glm::vec3(0.f),
     };
 
-	SphereModel m_Sphere;
-
-	// ImGui Params
-	float m_ZenithAngle;
-	float m_AzimuthAngle;
-	bool m_AzimuthSweepEnabled = true;
-	bool m_ZenithSweepEnabled = false;
-	bool m_PossesCamera = false;
-	int m_InstanceCount = 1;
-	glm::vec3 m_Position;
-	uint64_t m_Duration = 0;
-
-
 #ifndef VK_MESH_EXT
     PFN_vkCmdDrawMeshTasksNV vkCmdDrawMeshTasksNv;
 #else
     PFN_vkCmdDrawMeshTasksEXT vkCmdDrawMeshTasksEXT;
 #endif
 
+    PFN_vkCmdSetPolygonModeEXT vkCmdSetPolygonModeEXT;
 
     VkCore::DescriptorBuilder m_DescriptorBuilder;
 
@@ -120,11 +112,5 @@ class LODApplication
     VulkanRenderer m_Renderer;
     VkCore::Window* m_Window = nullptr;
 
-    LODModel* m_Model = nullptr;
-
-	std::array<Model*, 3> m_AvailableModels = {nullptr, nullptr, nullptr};
-
     Camera m_Camera;
-	Camera m_FrustumCamera;
-	Camera* m_CurrentCamera = nullptr;
 };

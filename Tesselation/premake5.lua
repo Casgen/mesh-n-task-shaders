@@ -1,5 +1,5 @@
 ---@diagnostic disable: undefined-global
-project("MeshLOD")
+project("Tesselation")
 	kind("ConsoleApp")
 
 	language("C++")
@@ -32,7 +32,6 @@ project("MeshLOD")
 		"Src/**.h",
 		"Src/**.hpp",
 		"../Common/**.cpp",
-		"../Common/**.hpp",
 		"../Common/**.h",
 	}
 
