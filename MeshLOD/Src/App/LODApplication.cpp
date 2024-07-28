@@ -112,7 +112,6 @@ void LODApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 void LODApplication::InitializeModelPipeline()
 {
 
-
     m_Model = new LODModel("MeshLOD/Res/Artwork/OBJs/kitten_lod0.obj");
 
     const std::vector<VkCore::ShaderData> shaders =
@@ -162,8 +161,7 @@ void LODApplication::InitializeAxisPipeline()
     attributeBuilder.PushAttribute<float>(3);
     attributeBuilder.SetBinding(0);
 
-    std::vector<VkCore::ShaderData> shaderData =
-        VkCore::ShaderLoader::LoadClassicShaders("MeshLOD/Res/Shaders/axis");
+    std::vector<VkCore::ShaderData> shaderData = VkCore::ShaderLoader::LoadClassicShaders("MeshLOD/Res/Shaders/axis");
     VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice());
 
     m_AxisPipeline = pipelineBuilder.BindShaderModules(shaderData)
@@ -191,8 +189,7 @@ void LODApplication::InitializeBoundsPipeline()
 
     VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice());
 
-    std::vector<VkCore::ShaderData> shaderData =
-        VkCore::ShaderLoader::LoadClassicShaders("MeshLOD/Res/Shaders/bounds");
+    std::vector<VkCore::ShaderData> shaderData = VkCore::ShaderLoader::LoadClassicShaders("MeshLOD/Res/Shaders/bounds");
 
     m_BoundsPipeline = pipelineBuilder.BindShaderModules(shaderData)
                            .BindRenderPass(m_Renderer.m_RenderPass.GetVkRenderPass())
@@ -247,18 +244,15 @@ void LODApplication::InitializeInstancing()
     std::vector<glm::mat4> instances;
     instances.resize(m_InstanceCountMax);
 
-    for (uint32_t z = 0; z < m_InstanceSize.z; z++)
+    for (uint32_t y = 0; y < m_InstanceSize.y; y++)
     {
-        for (uint32_t y = 0; y < m_InstanceSize.y; y++)
+        for (uint32_t x = 0; x < m_InstanceSize.x; x++)
         {
-            for (uint32_t x = 0; x < m_InstanceSize.x; x++)
-            {
-                glm::vec3 instancePos = {x * span.x, y * span.y, z * span.z};
+            glm::vec3 instancePos = {x * span.x, 0.f, y * span.y};
 
-                const uint32_t index = x + m_InstanceSize.y * y + m_InstanceSize.x * m_InstanceSize.y * z;
+            const uint32_t index = x + m_InstanceSize.y * y;
 
-                instances[index] = (glm::translate(glm::identity<glm::mat4>(), instancePos));
-            }
+            instances[index] = (glm::translate(glm::identity<glm::mat4>(), instancePos));
         }
     }
 
@@ -275,7 +269,6 @@ void LODApplication::DrawFrame()
 {
 
     uint32_t imageIndex = m_Renderer.AcquireNextImage();
-
 
     if (imageIndex == -1)
     {
@@ -309,15 +302,14 @@ void LODApplication::DrawFrame()
 
     m_MatBuffers[imageIndex].UpdateData(&ubo);
 
-	m_Renderer.BeginCmdBuffer();
+    m_Renderer.BeginCmdBuffer();
     vk::CommandBuffer commandBuffer = m_Renderer.GetCurrentCmdBuffer();
 
-	DurationQuery durationQuery;
+    DurationQuery durationQuery;
 
-	durationQuery.Reset(commandBuffer);
+    durationQuery.Reset(commandBuffer);
 
     m_Renderer.BeginRenderPass({0.3f, 0.f, 0.2f, 1.f}, m_Window->GetWidth(), m_Window->GetHeight());
-
 
     vk::Rect2D scissor = vk::Rect2D({0, 0}, {m_Window->GetWidth(), m_Window->GetHeight()});
     commandBuffer.setScissor(0, 1, &scissor);
@@ -341,11 +333,11 @@ void LODApplication::DrawFrame()
                                     vk::ShaderStageFlagBits::eMeshNV | vk::ShaderStageFlagBits ::eTaskEXT,
                                     sizeof(FragmentPC), sizeof(LodPC), &lod_pc);
 
-		durationQuery.StartTimestamp(commandBuffer, vk::PipelineStageFlagBits::eTaskShaderEXT);
+        durationQuery.StartTimestamp(commandBuffer, vk::PipelineStageFlagBits::eTaskShaderEXT);
 
         for (uint32_t i = 0; i < m_Model->GetMeshCount(); i++)
         {
-			LODMesh& mesh = m_Model->GetMesh(i);
+            LODMesh& mesh = m_Model->GetMesh(i);
 
             const vk::DescriptorSetLayout layout = mesh.GetDescriptorSetLayout();
             const vk::DescriptorSet set = mesh.GetDescriptorSet();
@@ -358,12 +350,12 @@ void LODApplication::DrawFrame()
 #ifndef VK_MESH_EXT
             vkCmdDrawMeshTasksNv(&*commandBuffer, mesh.GetMeshletCount(), 0);
 #else
-            vkCmdDrawMeshTasksEXT(&*commandBuffer, (mesh.GetMeshInfo().lodMeshletCount[0] / 32) + 1,
-                                  m_InstanceCount, 1);
+            vkCmdDrawMeshTasksEXT(&*commandBuffer, (mesh.GetMeshInfo().lodMeshletCount[0] / 32) + 1, m_InstanceCount,
+                                  1);
 #endif
         }
 
-		durationQuery.EndTimestamp(commandBuffer, vk::PipelineStageFlagBits::eFragmentShader);
+        durationQuery.EndTimestamp(commandBuffer, vk::PipelineStageFlagBits::eFragmentShader);
     }
 
     // {
@@ -416,16 +408,16 @@ void LODApplication::DrawFrame()
                                 ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize(ImVec2(200, 200), ImGuiCond_FirstUseEver);
 
-
         if (ImGui::Begin("Instancing", &open))
         {
             ImGui::Text("Task/Mesh Shader execution in ms: %.4f", m_Duration / 1000000.f);
-			ImGui::Text("Instance Count");
-			ImGui::SliderInt("##Instance Count", &m_InstanceCount, 0, (int)m_InstanceCountMax, "%d", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::Text("Instance Count");
+            ImGui::SliderInt("##Instance Count", &m_InstanceCount, 0, (int)m_InstanceCountMax, "%d",
+                             ImGuiSliderFlags_AlwaysClamp);
 
-			ImGui::Text("LOD Exponent");
-			ImGui::SliderFloat("##LOD Exponent", &lod_pc.lod_pow, 0, 1.f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
-	
+            ImGui::Text("LOD Exponent");
+            ImGui::SliderFloat("##LOD Exponent", &lod_pc.lod_pow, 0, 1.f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+
             ImGui::Text("Posses Preview Camera");
             ImGui::SameLine();
             if (ImGui::Checkbox("##Posses Preview Camera", &m_PossesCamera))
@@ -448,7 +440,7 @@ void LODApplication::DrawFrame()
 
             if (!m_PossesCamera)
             {
-				
+
                 ImGui::Text("Zenith");
                 if (ImGui::SliderAngle("##Zenith", &m_ZenithAngle, 90, -90))
                 {
@@ -484,7 +476,7 @@ void LODApplication::DrawFrame()
     }
 
     uint32_t endDrawResult = m_Renderer.EndDraw();
-	m_Duration = durationQuery.GetResults();
+    m_Duration = durationQuery.GetResults();
 
     if (endDrawResult == -1)
     {
@@ -707,7 +699,7 @@ bool LODApplication::OnKeyPressed(KeyPressedEvent& event)
         m_CurrentCamera->SetIsMovingDown(true);
         return true;
     case GLFW_KEY_M:
-        fragment_pc.is_meshlet_view_on = !fragment_pc.is_meshlet_view_on ;
+        fragment_pc.is_meshlet_view_on = !fragment_pc.is_meshlet_view_on;
         LOGF(Application, Verbose, "Meshlet view is %d", fragment_pc.is_meshlet_view_on)
     default:
         return false;

@@ -64,9 +64,7 @@ void main()
 
 	if (grid_count > 1) {
 
-
 		vec4 scaled_grid = grid * grid_count;
-		//debugPrintfEXT("Diff: %v2f\n", grid_diff);
 
 		vec4 bottom_left_grid = vec4(scaled_grid.xy, scaled_grid.xy + range);
 
@@ -80,17 +78,13 @@ void main()
 		);
 	}
 
-	// debugPrintfEXT("Grid: %v4f, id: %d\n", grid, gl_WorkGroupID.z);
-
 
 	uvec2 tess_num = gl_WorkGroupID.xy;
 	uint thread_id = gl_LocalInvocationIndex;
 	
 	vec2 t = vec2(tess_num) / vec2(gl_NumWorkGroups.xy);
 	vec2 patch_coord = mix(grid.xy, grid.zw, t);
-
 	vec2 patch_size = (grid.zw - grid.xy) / gl_NumWorkGroups.xy;
-
 
 	vec2 square_size = patch_size / vec2(squares_per_side.x, squares_per_side.y);
 
@@ -108,17 +102,17 @@ void main()
 	// Create triangles
 	for (uint i = thread_id; i < MAX_TRIANGLES; i += 32) {
 
-		bool isEven = i % 2 == 0;
-		uint baseVertex = i / 2;
+		bool is_even = i % 2 == 0;
+		uint base_vertex = i / 2;
 
-		uint a = baseVertex + uint(baseVertex / squares_per_side.x);
+		uint a = base_vertex + uint(base_vertex / squares_per_side.x);
 		uint b = a + 1;
 		uint c = a + 1 + verts_per_side.x;
 		uint d = a + verts_per_side.x;
 
 		uint indices[3] = uint[3](b, c, d); 
 
-		payload.triangles[i] = packTriangle(a, indices[0 + uint(isEven)], indices[1 + uint(isEven)]);
+		payload.triangles[i] = packTriangle(a, indices[0 + uint(is_even)], indices[1 + uint(is_even)]);
 	}
 
 	if (subgroupElect()) {

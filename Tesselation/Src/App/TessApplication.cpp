@@ -297,7 +297,6 @@ void TessApplication::DrawFrame()
         durationQuery.EndTimestamp(commandBuffer, vk::PipelineStageFlagBits::eFragmentShader);
     }
 
-
     {
         m_Renderer.ImGuiNewFrame(m_Window->GetWidth(), m_Window->GetHeight());
 
@@ -349,10 +348,10 @@ void TessApplication::DrawFrame()
 
     m_Renderer.EndRenderPass();
 
-    m_NoiseNormals.TransitionToGeneral(commandBuffer, vk::PipelineStageFlagBits::eVertexShader,
-                                       vk::PipelineStageFlagBits::eVertexShader);
-    m_NoiseHeight.TransitionToGeneral(commandBuffer, vk::PipelineStageFlagBits::eVertexShader,
-                                      vk::PipelineStageFlagBits::eVertexShader);
+    m_NoiseNormals.TransitionToGeneral(commandBuffer, vk::PipelineStageFlagBits::eFragmentShader,
+                                       vk::PipelineStageFlagBits::eFragmentShader);
+    m_NoiseHeight.TransitionToGeneral(commandBuffer, vk::PipelineStageFlagBits::eFragmentShader,
+                                      vk::PipelineStageFlagBits::eFragmentShader);
 
     uint32_t endDrawResult = m_Renderer.EndCmdBuffer();
 

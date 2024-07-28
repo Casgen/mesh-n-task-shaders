@@ -79,8 +79,8 @@ class LODApplication
 
     LodPC lod_pc;
 
-	glm::uvec3 m_InstanceSize = glm::uvec3(20);
-	const uint32_t m_InstanceCountMax = m_InstanceSize.x * m_InstanceSize.y * m_InstanceSize.z;
+	glm::uvec2 m_InstanceSize = glm::uvec3(90);
+	const uint32_t m_InstanceCountMax = m_InstanceSize.x * m_InstanceSize.y;
 
 
     FragmentPC fragment_pc = {

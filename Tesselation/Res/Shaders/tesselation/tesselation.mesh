@@ -74,7 +74,8 @@ void main()
 
 	SetMeshOutputsEXT(MAX_VERTICES, MAX_TRIANGLES);
 
-	for (uint i = thread_id; i < MAX_VERTICES; i += 32) {
+	for (uint i = thread_id; i < MAX_VERTICES; i += 32)
+	{
 		vec4 vertex = vec4(payload.vert_coords[i].x,texture(heightMapSampler, payload.vert_uvs[i]).r , payload.vert_coords[i].y, 1.f);
 		// vec4 vertex = vec4(payload.vert_coords[i].x,0.f, payload.vert_coords[i].y, 1.f);
 		
@@ -89,7 +90,6 @@ void main()
 
 	for (uint i = gl_LocalInvocationIndex; i < MAX_TRIANGLES; i += 32)
 	{
-		
 		gl_PrimitiveTriangleIndicesEXT[i] = unpackTriangle(payload.triangles[i]); 
 	}
 
