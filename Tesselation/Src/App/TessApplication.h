@@ -2,7 +2,7 @@
 #include <vector>
 
 #include "../Model/PushConstants.h"
-#include "../Renderer/VulkanRenderer.h"
+#include "../../Common/Renderer/VulkanRenderer.h"
 #include "Event/KeyEvent.h"
 #include "Event/MouseEvent.h"
 #include "Event/WindowEvent.h"

@@ -77,7 +77,7 @@ void InstancingApplication::Run(const uint32_t winWidth, const uint32_t winHeigh
     for (int i = 0; i < m_Renderer.m_Swapchain.GetImageCount(); i++)
     {
         VkCore::Buffer matBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eUniformBuffer);
-        matBuffer.InitializeOnCpu(sizeof(MatrixBuffer));
+        matBuffer.InitializeOnCpu(sizeof(FrustumMatrixBuffer));
 
         m_MatBuffers.emplace_back(std::move(matBuffer));
     }
@@ -115,7 +115,7 @@ void InstancingApplication::InitializeModelPipeline()
     const std::vector<VkCore::ShaderData> shaders =
         VkCore::ShaderLoader::LoadMeshShaders("MeshInstancing/Res/Shaders/instancing");
 
-    m_Model = new Model("MeshInstancing/Res/Artwork/OBJs/kitten.obj");
+    m_Model = new Model("MeshInstancing/Res/Artwork/OBJs/happy_smoothed.obj");
 
     // Pipeline
     VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice(), true);
@@ -296,7 +296,7 @@ void InstancingApplication::DrawFrame()
         m_FrustumCamera.Yaw(cosf(time));
     }
 
-    MatrixBuffer ubo{};
+    FrustumMatrixBuffer ubo{};
     ubo.m_Proj = m_CurrentCamera->GetProjMatrix();
     ubo.m_View = m_CurrentCamera->GetViewMatrix();
 

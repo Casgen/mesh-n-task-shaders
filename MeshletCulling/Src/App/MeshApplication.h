@@ -2,14 +2,15 @@
 #include <vector>
 
 #include "../Model/PushConstants.h"
-#include "../Renderer/VulkanRenderer.h"
 #include "Event/KeyEvent.h"
 #include "Event/MouseEvent.h"
 #include "Event/WindowEvent.h"
 #include "Mesh/Model.h"
+#include "../../Common/Renderer/VulkanRenderer.h"
 #include "Model/Camera.h"
 #include "Model/MouseState.h"
 #include "Model/Structures/Sphere.h"
+#include "Platform/Window.h"
 #include "Vk/Descriptors/DescriptorBuilder.h"
 #include "vulkan/vulkan_core.h"
 #include "vulkan/vulkan_handles.hpp"

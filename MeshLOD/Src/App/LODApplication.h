@@ -2,7 +2,7 @@
 #include <vector>
 
 #include "../Model/PushConstants.h"
-#include "../Renderer/VulkanRenderer.h"
+#include "../../Common/Renderer/VulkanRenderer.h"
 #include "Event/KeyEvent.h"
 #include "Event/MouseEvent.h"
 #include "Event/WindowEvent.h"
@@ -79,7 +79,7 @@ class LODApplication
 
     LodPC lod_pc;
 
-	glm::uvec2 m_InstanceSize = glm::uvec3(90);
+	glm::uvec2 m_InstanceSize = glm::uvec3(200);
 	const uint32_t m_InstanceCountMax = m_InstanceSize.x * m_InstanceSize.y;
 
 
@@ -98,12 +98,17 @@ class LODApplication
 	// ImGui Params
 	float m_ZenithAngle;
 	float m_AzimuthAngle;
-	bool m_AzimuthSweepEnabled = true;
+	bool m_AzimuthSweepEnabled = false;
 	bool m_ZenithSweepEnabled = false;
-	bool m_PossesCamera = false;
-	int m_InstanceCount = 1;
+	bool m_PossesCamera = true;
+	bool m_EnableCulling = true;
+	int m_InstanceCount = 0;
 	glm::vec3 m_Position;
+
 	uint64_t m_Duration = 0;
+	uint64_t m_AvgDuration = 0;
+	uint64_t m_AccDuration = 0;
+	uint32_t m_Counter = 0;
 
 
 #ifndef VK_MESH_EXT

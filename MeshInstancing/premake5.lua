@@ -24,12 +24,15 @@ project("MeshInstancing")
 		"../VulkanCore/Vendor/ZMath/**.cpp",
 		"../VulkanCore/Vendor/ZMath/**.h",
 		"../VulkanCore/Vendor/meshoptimizer",
+		"../Common"
 	}
 
 	files{
 		"Src/**.cpp",
 		"Src/**.h",
 		"Src/**.hpp",
+		"../Common/**.cpp",
+		"../Common/**.h"
 	}
 
 	filter("configurations:Debug")

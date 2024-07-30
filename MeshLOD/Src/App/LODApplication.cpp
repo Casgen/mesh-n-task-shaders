@@ -38,8 +38,6 @@ void LODApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 {
     Logger::SetSeverityFilter(ESeverity::Verbose);
 
-    std::cout << sizeof(Frustum) << std::endl;
-
     m_Window = new VkCore::Window("Mesh Application", winWidth, winHeight);
     m_Window->SetEventCallback(std::bind(&LODApplication::OnEvent, this, std::placeholders::_1));
 
@@ -64,10 +62,10 @@ void LODApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 #endif
 
     m_Camera =
-        Camera({0.f, 0.f, -1.f}, {0.f, 0.f, 0.f}, (float)m_Window->GetWidth() / m_Window->GetHeight(), 45.f, 50.f);
-    m_CurrentCamera = &m_Camera;
+        Camera({-1.f, 3.f, -1.f}, {1.f, 0.5f, 1.f}, (float)m_Window->GetWidth() / m_Window->GetHeight(), 45.f, 50.f);
+    m_CurrentCamera = &m_FrustumCamera;
     m_FrustumCamera =
-        Camera({0.f, 0.f, -1.f}, {0.f, 0.f, 0.f}, (float)m_Window->GetWidth() / m_Window->GetHeight(), 45.f, 25.f);
+        Camera({-1.f, 3.f, -1.f}, {1.f, 0.5f, 1.f}, (float)m_Window->GetWidth() / m_Window->GetHeight(), 45.f, 40.f);
 
     m_ZenithAngle = m_FrustumCamera.GetZenith();
     m_AzimuthAngle = m_FrustumCamera.GetAzimuth();
@@ -77,7 +75,7 @@ void LODApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
     for (int i = 0; i < m_Renderer.m_Swapchain.GetImageCount(); i++)
     {
         VkCore::Buffer matBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eUniformBuffer);
-        matBuffer.InitializeOnCpu(sizeof(MatrixBuffer));
+        matBuffer.InitializeOnCpu(sizeof(FrustumMatrixBuffer));
 
         m_MatBuffers.emplace_back(std::move(matBuffer));
     }
@@ -114,6 +112,7 @@ void LODApplication::InitializeModelPipeline()
 
     m_Model = new LODModel("MeshLOD/Res/Artwork/OBJs/kitten_lod0.obj");
 
+
     const std::vector<VkCore::ShaderData> shaders =
         VkCore::ShaderLoader::LoadMeshShaders("MeshLOD/Res/Shaders/lod", false);
 
@@ -146,7 +145,7 @@ void LODApplication::InitializeAxisPipeline()
         0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0,
     };
 
-    const uint32_t m_AxisIndexData[6] = {
+    uint32_t m_AxisIndexData[6] = {
         0, 1, 0, 2, 0, 3,
     };
 
@@ -291,7 +290,7 @@ void LODApplication::DrawFrame()
         m_FrustumCamera.Yaw(cosf(time));
     }
 
-    MatrixBuffer ubo{};
+    FrustumMatrixBuffer ubo{};
     ubo.m_Proj = m_CurrentCamera->GetProjMatrix();
     ubo.m_View = m_CurrentCamera->GetViewMatrix();
 
@@ -411,6 +410,7 @@ void LODApplication::DrawFrame()
         if (ImGui::Begin("Instancing", &open))
         {
             ImGui::Text("Task/Mesh Shader execution in ms: %.4f", m_Duration / 1000000.f);
+            ImGui::Text("Avg. Task/Mesh Shader execution in ms: %.4f", m_AvgDuration / 1000000.f);
             ImGui::Text("Instance Count");
             ImGui::SliderInt("##Instance Count", &m_InstanceCount, 0, (int)m_InstanceCountMax, "%d",
                              ImGuiSliderFlags_AlwaysClamp);
@@ -418,8 +418,17 @@ void LODApplication::DrawFrame()
             ImGui::Text("LOD Exponent");
             ImGui::SliderFloat("##LOD Exponent", &lod_pc.lod_pow, 0, 1.f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
 
+            ImGui::Text("Enable culling");
+            ImGui::SameLine();
+
+            if (ImGui::Checkbox("##Enable culling", &m_EnableCulling))
+            {
+                lod_pc.enable_culling = m_EnableCulling;
+            };
+
             ImGui::Text("Posses Preview Camera");
             ImGui::SameLine();
+
             if (ImGui::Checkbox("##Posses Preview Camera", &m_PossesCamera))
             {
                 m_AzimuthSweepEnabled = false;
@@ -476,7 +485,26 @@ void LODApplication::DrawFrame()
     }
 
     uint32_t endDrawResult = m_Renderer.EndDraw();
-    m_Duration = durationQuery.GetResults();
+    m_AccDuration += m_Duration = durationQuery.GetResults();
+
+    m_Counter++;
+    m_Counter %= 180;
+
+    if (m_Counter >= 179)
+    {
+        m_AvgDuration = m_AccDuration / 179;
+        // std::printf("L = %.1f;%d;%.3f\n", lod_pc.lod_pow, m_InstanceCount, m_AvgDuration / 1000000.f);
+        // if (lod_pc.lod_pow >= 1.f) {
+        // 	lod_pc.lod_pow = 0.f;
+        // }
+        // m_InstanceCount += 1000;
+        // m_InstanceCount %= 40000;
+        //
+        // if (m_InstanceCount == 0) {
+        // 	lod_pc.lod_pow += 0.1f;
+        // }
+        m_AccDuration = 0;
+    }
 
     if (endDrawResult == -1)
     {
@@ -603,7 +631,7 @@ bool LODApplication::OnMousePress(MouseButtonEvent& event)
 
 bool LODApplication::OnMouseMoved(MouseMovedEvent& event)
 {
-    if (ImGui::GetIO().WantCaptureMouse)
+    if (ImGui::GetIO().WantCaptureMouse && !m_MouseState.m_IsRMBPressed)
     {
         ImGui_ImplGlfw_CursorPosCallback(m_Window->GetGLFWWindow(), event.GetPos().x, event.GetPos().y);
         return false;
@@ -638,7 +666,7 @@ bool LODApplication::OnMouseMoved(MouseMovedEvent& event)
 bool LODApplication::OnMouseRelease(MouseButtonEvent& event)
 {
 
-    if (ImGui::GetIO().WantCaptureMouse)
+    if (ImGui::GetIO().WantCaptureMouse && !m_MouseState.m_IsRMBPressed)
     {
         ImGui_ImplGlfw_MouseButtonCallback(m_Window->GetGLFWWindow(), event.GetKeyCode(), GLFW_RELEASE, 0);
         return true;

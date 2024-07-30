@@ -20,6 +20,7 @@ workspace("MeshAndTaskShaders")
     include("MeshletCulling")
     include("MeshInstancing")
 	include("MeshLOD")
+	include("ClassicMeshLOD")
     include("Tesselation")
     include("VulkanCore")
 

@@ -73,7 +73,7 @@ void TessApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
     for (int i = 0; i < m_Renderer.m_Swapchain.GetImageCount(); i++)
     {
         VkCore::Buffer matBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eUniformBuffer);
-        matBuffer.InitializeOnCpu(sizeof(MatrixBuffer));
+        matBuffer.InitializeOnCpu(sizeof(FrustumMatrixBuffer));
 
         m_MatBuffers.emplace_back(std::move(matBuffer));
     }
@@ -228,7 +228,7 @@ void TessApplication::DrawFrame()
 
     m_Camera.Update();
 
-    MatrixBuffer ubo{};
+    FrustumMatrixBuffer ubo{};
     ubo.m_Proj = m_Camera.GetProjMatrix();
     ubo.m_View = m_Camera.GetViewMatrix();
 
@@ -353,7 +353,7 @@ void TessApplication::DrawFrame()
     m_NoiseHeight.TransitionToGeneral(commandBuffer, vk::PipelineStageFlagBits::eFragmentShader,
                                       vk::PipelineStageFlagBits::eFragmentShader);
 
-    uint32_t endDrawResult = m_Renderer.EndCmdBuffer();
+    int endDrawResult = m_Renderer.EndCmdBuffer();
 
     m_Duration = durationQuery.GetResults();
 

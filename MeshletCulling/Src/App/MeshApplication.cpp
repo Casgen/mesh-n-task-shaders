@@ -73,7 +73,7 @@ void MeshApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
     for (int i = 0; i < m_Renderer.m_Swapchain.GetImageCount(); i++)
     {
         VkCore::Buffer matBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eUniformBuffer);
-        matBuffer.InitializeOnCpu(sizeof(MatrixBuffer));
+        matBuffer.InitializeOnCpu(sizeof(FrustumMatrixBuffer));
 
         m_MatBuffers.emplace_back(std::move(matBuffer));
     }
@@ -256,7 +256,7 @@ void MeshApplication::DrawFrame()
 	}
 	 
 
-    MatrixBuffer ubo{};
+    FrustumMatrixBuffer ubo{};
     ubo.m_Proj = m_Camera.GetProjMatrix();
     ubo.m_View = m_Camera.GetViewMatrix();
 

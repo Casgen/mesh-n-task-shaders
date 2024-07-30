@@ -67,14 +67,15 @@ layout (push_constant, std430) uniform LODPushConstant {
     layout(offset = 96) mat4 rotation_mat; 
     mat4 scale_mat;
 	uint max_meshlet_count;
-	float lod_pow;
+	float u_lod_pow;
+	bool u_enable_culling;
 };
 
 uint calculate_lod(uint instance_index) {
 	vec3 instance_pos = instances.matrices[instance_index][3].xyz;
 
 	float distance = length(instance_pos - mat_buffer.frustum.point_sides);
-	float lod_f = pow(distance, lod_pow);
+	float lod_f = pow(distance, u_lod_pow);
 	
 	return uint(clamp(lod_f, 0.f, lod_info.lod_count - 1));
 }
@@ -99,30 +100,36 @@ void main()
 	payload.instance_index = instance_index;
 	payload.meshlet_indices[gl_LocalInvocationIndex] = meshlet_index;
 
-	s_meshlet_bound bound = meshlet_bounds.bounds[meshlet_index];
-	
-	// Meshlet Culling
-	vec4 transl_pos = instances.matrices[instance_index] * rotation_mat * vec4(bound.sphere_pos, 1.f);
-	vec3 sides_vector = transl_pos.xyz - mat_buffer.frustum.point_sides;
+	uvec4 ballot;
 
-	float left_distance = dot(sides_vector, mat_buffer.frustum.left) - bound.sphere_radius; 
-	float right_distance = dot(sides_vector, mat_buffer.frustum.right) - bound.sphere_radius; 
-	float top_distance = dot(sides_vector, mat_buffer.frustum.top) - bound.sphere_radius; 
-	float bottom_distance = dot(sides_vector, mat_buffer.frustum.bottom) - bound.sphere_radius; 
+	if (u_enable_culling) {
+		// Meshlet Culling
+		s_meshlet_bound bound = meshlet_bounds.bounds[meshlet_index];
+		
+		vec4 transl_pos = instances.matrices[instance_index] * rotation_mat * vec4(bound.sphere_pos, 1.f);
+		vec3 sides_vector = transl_pos.xyz - mat_buffer.frustum.point_sides;
 
-	float front_distance = dot(transl_pos.xyz - mat_buffer.frustum.point_front, mat_buffer.frustum.front) - bound.sphere_radius; 
-	float back_distance = dot(transl_pos.xyz - mat_buffer.frustum.point_back, mat_buffer.frustum.back) - bound.sphere_radius; 
+		float left_distance = dot(sides_vector, mat_buffer.frustum.left) - bound.sphere_radius; 
+		float right_distance = dot(sides_vector, mat_buffer.frustum.right) - bound.sphere_radius; 
+		float top_distance = dot(sides_vector, mat_buffer.frustum.top) - bound.sphere_radius; 
+		float bottom_distance = dot(sides_vector, mat_buffer.frustum.bottom) - bound.sphere_radius; 
 
-	uint result = uint(left_distance < 0.f); // bitwise implementation;
-	result |= uint(right_distance < 0.f) << 1 ; 
-	result |= uint(top_distance < 0.f) << 2;
-	result |= uint(bottom_distance < 0.f) << 3;
-	result |= uint(front_distance < 0.f) << 4;
-	result |= uint(back_distance < 0.f) << 5;
+		float front_distance = dot(transl_pos.xyz - mat_buffer.frustum.point_front, mat_buffer.frustum.front) - bound.sphere_radius; 
+		float back_distance = dot(transl_pos.xyz - mat_buffer.frustum.point_back, mat_buffer.frustum.back) - bound.sphere_radius; 
 
-	bool isNotClipped = result == 63;
-	
-	uvec4 ballot = subgroupBallot(isNotClipped);
+		uint result = uint(left_distance < 0.f); // bitwise implementation;
+		result |= uint(right_distance < 0.f) << 1 ; 
+		result |= uint(top_distance < 0.f) << 2;
+		result |= uint(bottom_distance < 0.f) << 3;
+		result |= uint(front_distance < 0.f) << 4;
+		result |= uint(back_distance < 0.f) << 5;
+
+		bool isNotClipped = result == 63;
+		
+		ballot = subgroupBallot(isNotClipped);
+	} else {
+		ballot = subgroupBallot(true);
+	}
 
 	if (subgroupElect()) {
 		uint min_offset = 32 * gl_WorkGroupID.x;
