@@ -79,7 +79,7 @@ class ClassicApplication
     VkCore::Buffer m_InstancesBuffer;
     VkCore::Buffer m_InstanceIndices;
 
-    // VkCore::Buffer m_DrawIndirectCmds;
+    VkCore::Buffer m_DrawIndirectCmds;
 
 
     vk::DescriptorSet m_InstancesDescSet;

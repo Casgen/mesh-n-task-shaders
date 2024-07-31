@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include <stdexcept>
 
+#include "Constants.h"
 #include "GLFW/glfw3.h"
 #include "Log/Log.h"
 #include "Model/Camera.h"
@@ -31,6 +32,7 @@
 #include "vulkan/vulkan_structs.hpp"
 #include "glm/gtc/type_ptr.hpp"
 #include "../../Common/Query.h"
+#include "../Model/InstanceInfo.h"
 
 void ClassicApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 {
@@ -129,7 +131,6 @@ void ClassicApplication::InitializeModelPipeline()
                           .AddDescriptorLayout(m_MatrixDescSetLayout)
                           .AddDescriptorLayout(m_InstancesDescSetLayout)
                           .AddPushConstantRange<FragmentPC>(vk::ShaderStageFlagBits::eFragment)
-                          .AddPushConstantRange<LodPC>(vk::ShaderStageFlagBits::eVertex, sizeof(FragmentPC))
                           .SetPrimitiveAssembly(vk::PrimitiveTopology::eTriangleList)
                           .AddDynamicState(vk::DynamicState::eScissor)
                           .AddDynamicState(vk::DynamicState::eViewport)
@@ -140,6 +141,13 @@ void ClassicApplication::InitializeLODCompute()
 {
     VkCore::ShaderData computeShader =
         VkCore::ShaderLoader::LoadComputeShader("ClassicMeshLOD/Res/Shaders/lod_compute.comp", false);
+
+    VkCore::ComputePipelineBuilder pipelineBuilder{};
+
+    m_LODPipeline = pipelineBuilder.BindShaderModule(computeShader)
+                        .AddPushConstantRange<Frustum>(vk::ShaderStageFlagBits::eCompute)
+                        .AddDescriptorLayout(m_InstancesDescSetLayout)
+                        .Build(m_LODPipelineLayout);
 }
 
 void ClassicApplication::InitializeAxisPipeline()
@@ -263,8 +271,16 @@ void ClassicApplication::InitializeInstancing()
     m_InstancesBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer);
     m_InstancesBuffer.InitializeOnGpu(instances.data(), instances.size() * sizeof(glm::mat4));
 
+    m_InstanceIndices = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer);
+    m_InstanceIndices.InitializeOnGpu(instances.size() * sizeof(InstanceInfo));
+
+    m_DrawIndirectCmds = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eIndirectBuffer);
+    m_DrawIndirectCmds.InitializeOnGpu(Constants::MAX_LOD_LEVELS * sizeof(vk::DrawIndexedIndirectCommand));
+
     m_DescriptorBuilder
         .BindBuffer(0, m_InstancesBuffer, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eVertex)
+        .BindBuffer(1, m_InstanceIndices, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eVertex)
+        .BindBuffer(2, m_DrawIndirectCmds, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eVertex)
         .Build(m_InstancesDescSet, m_InstancesDescSetLayout);
 }
 
@@ -332,7 +348,7 @@ void ClassicApplication::DrawFrame()
         commandBuffer.pushConstants(m_ModelPipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, sizeof(FragmentPC),
                                     &fragment_pc);
 
-        // durationQuery.StartTimestamp(commandBuffer, vk::PipelineStageFlagBits::eVertexShader);
+        durationQuery.StartTimestamp(commandBuffer, vk::PipelineStageFlagBits::eVertexShader);
 
         for (uint32_t i = 0; i < m_Model->GetMeshCount(); i++)
         {
@@ -344,7 +360,7 @@ void ClassicApplication::DrawFrame()
             commandBuffer.drawIndexed(mesh.GetMeshInfo().indexCount[0], m_InstanceCount, 0, 0, 0);
         }
 
-        // durationQuery.EndTimestamp(commandBuffer, vk::PipelineStageFlagBits::eVertexShader);
+        durationQuery.EndTimestamp(commandBuffer, vk::PipelineStageFlagBits::eVertexShader);
     }
 
     {
