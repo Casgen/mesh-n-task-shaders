@@ -9,6 +9,7 @@
 #include "Constants.h"
 #include "GLFW/glfw3.h"
 #include "Log/Log.h"
+#include "Mesh/ClassicLODMesh.h"
 #include "Model/Camera.h"
 #include "Model/MatrixBuffer.h"
 #include "Model/Shaders/ShaderData.h"
@@ -96,9 +97,9 @@ void ClassicApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
     }
 
     InitializeInstancing();
+    InitializeModelPipeline();
 
     InitializeLODCompute();
-    InitializeModelPipeline();
     InitializeAxisPipeline();
     InitializeBoundsPipeline();
     InitializeFrustumPipeline();
@@ -115,10 +116,19 @@ void ClassicApplication::InitializeModelPipeline()
     const std::vector<VkCore::ShaderData> shaders =
         VkCore::ShaderLoader::LoadClassicShaders("ClassicMeshLOD/Res/Shaders/lod", false);
 
-    // Pipeline
-    VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice(), false);
+
+    ClassicLODMeshInfo meshInfo = m_Model->GetMesh(0).GetMeshInfo();
+
+    m_LODMeshInfo = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer);
+    m_LODMeshInfo.InitializeOnGpu(&meshInfo, sizeof(ClassicLODMeshInfo));
+
+    m_DescriptorBuilder
+        .BindBuffer(0, m_LODMeshInfo, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eCompute | vk::ShaderStageFlagBits::eVertex)
+        .Build(m_LODMeshInfoSet, m_LODMeshInfoSetLayout);
 
     VkCore::VertexAttributeBuilder attributeBuilder = Vertex::CreateAttributeBuilder();
+
+    VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice(), false);
 
     m_ModelPipeline = pipelineBuilder.BindShaderModules(shaders)
                           .BindRenderPass(m_Renderer.m_RenderPass.GetVkRenderPass())
@@ -145,7 +155,8 @@ void ClassicApplication::InitializeLODCompute()
     VkCore::ComputePipelineBuilder pipelineBuilder{};
 
     m_LODPipeline = pipelineBuilder.BindShaderModule(computeShader)
-                        .AddPushConstantRange<Frustum>(vk::ShaderStageFlagBits::eCompute)
+                        .AddPushConstantRange<LodPC>(vk::ShaderStageFlagBits::eCompute)
+						.AddDescriptorLayout(m_LODMeshInfoSetLayout)
                         .AddDescriptorLayout(m_InstancesDescSetLayout)
                         .Build(m_LODPipelineLayout);
 }
@@ -274,13 +285,17 @@ void ClassicApplication::InitializeInstancing()
     m_InstanceIndices = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer);
     m_InstanceIndices.InitializeOnGpu(instances.size() * sizeof(InstanceInfo));
 
-    m_DrawIndirectCmds = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eIndirectBuffer);
+    m_DrawIndirectCmds =
+        VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eIndirectBuffer);
     m_DrawIndirectCmds.InitializeOnGpu(Constants::MAX_LOD_LEVELS * sizeof(vk::DrawIndexedIndirectCommand));
 
     m_DescriptorBuilder
-        .BindBuffer(0, m_InstancesBuffer, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eVertex)
-        .BindBuffer(1, m_InstanceIndices, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eVertex)
-        .BindBuffer(2, m_DrawIndirectCmds, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eVertex)
+        .BindBuffer(0, m_InstancesBuffer, vk::DescriptorType::eStorageBuffer,
+                    vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eCompute)
+        .BindBuffer(1, m_InstanceIndices, vk::DescriptorType::eStorageBuffer,
+                    vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eCompute)
+        .BindBuffer(2, m_DrawIndirectCmds, vk::DescriptorType::eStorageBuffer,
+                    vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eCompute)
         .Build(m_InstancesDescSet, m_InstancesDescSetLayout);
 }
 
@@ -314,7 +329,7 @@ void ClassicApplication::DrawFrame()
     ubo.m_Proj = m_CurrentCamera->GetProjMatrix();
     ubo.m_View = m_CurrentCamera->GetViewMatrix();
 
-    ubo.frustum = m_FrustumCamera.CalculateFrustum();
+    lod_pc.frustum = m_FrustumCamera.CalculateFrustum();
 
     fragment_pc.cam_pos = m_CurrentCamera->GetPosition();
     fragment_pc.cam_view_dir = m_CurrentCamera->GetViewDirection();
@@ -327,6 +342,23 @@ void ClassicApplication::DrawFrame()
     DurationQuery durationQuery;
 
     durationQuery.Reset(commandBuffer);
+
+    {
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, m_LODPipeline);
+        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, m_LODPipelineLayout, 0, {m_LODMeshInfoSet, m_InstancesDescSet}, {});
+
+
+        commandBuffer.pushConstants(m_LODPipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(LodPC), &lod_pc);
+
+        commandBuffer.dispatch(((uint32_t)m_InstanceCount / 32) + 1, 1, 1);
+
+        vk::MemoryBarrier memoryBarrier;
+        memoryBarrier.srcAccessMask = vk::AccessFlagBits::eShaderWrite;
+        memoryBarrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
+
+        commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader,
+                                      vk::PipelineStageFlagBits::eVertexShader, {}, memoryBarrier, {}, {});
+    }
 
     m_Renderer.BeginRenderPass({0.3f, 0.f, 0.2f, 1.f}, m_Window->GetWidth(), m_Window->GetHeight());
 

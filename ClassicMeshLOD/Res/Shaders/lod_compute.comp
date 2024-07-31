@@ -5,20 +5,27 @@
 layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
 
 
-layout (std430, binding = 0) buffer Instances {
+layout (std430, binding = 0) buffer LODMeshInfo {
+    uint indexCount[8];
+    uint indexOffset[8];
+    uint vertexCount[8];
+    uint LodCount;
+} lod_mesh_info;
+
+layout (std430, set = 1, binding = 0) buffer Instances {
 	mat4 matrices[];
 } instances;
 
-struct s_instance_info {
+struct InstanceInfo {
 	uint lod;
 	uint index;
 };
 
-layout (std430, binding = 1) buffer InstanceInfos {
-	s_instance_info infos[];
+layout (std430, set = 1, binding = 1) buffer InstanceInfos {
+	InstanceInfo infos[];
 } instance_infos;
 
-struct s_draw_cmd {
+struct DrawCmd {
 	uint indexCount;
 	uint instanceCount;
 	uint firstIndex;
@@ -26,8 +33,8 @@ struct s_draw_cmd {
 	uint firstInstance;
 };
 
-layout (std430, binding = 2) buffer IndirectDrawCmds {
-	s_draw_cmd draw_cmds[8];
+layout (std430, set = 1, binding = 2) buffer IndirectDrawCmds {
+	DrawCmd cmds[8];
 } draw_cmds;
 
 
@@ -66,13 +73,11 @@ uint calculate_lod(uint instance_index) {
 
 void main() {
 	
-	debugPrintfEXT("ID: %d", gl_GlobalInvocationID.x);
-	
 	uint instance_id = gl_GlobalInvocationID.x; 
-
-	return;
 	
 	instance_infos.infos[instance_id].index = instance_id;
 	instance_infos.infos[instance_id].lod = calculate_lod(instance_id);
+
+	
 
 }

@@ -79,8 +79,11 @@ class ClassicApplication
     VkCore::Buffer m_InstancesBuffer;
     VkCore::Buffer m_InstanceIndices;
 
+	VkCore::Buffer m_LODMeshInfo;
     VkCore::Buffer m_DrawIndirectCmds;
 
+    vk::DescriptorSet m_LODMeshInfoSet;
+    vk::DescriptorSetLayout m_LODMeshInfoSetLayout;
 
     vk::DescriptorSet m_InstancesDescSet;
     vk::DescriptorSetLayout m_InstancesDescSetLayout;
@@ -98,7 +101,7 @@ class ClassicApplication
     bool m_ZenithSweepEnabled = false;
     bool m_PossesCamera = true;
     bool m_EnableCulling = true;
-    int m_InstanceCount = 0;
+    int m_InstanceCount = 100;
     glm::vec3 m_Position;
 
     LodPC lod_pc = {.frustum = {},
