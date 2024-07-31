@@ -14,11 +14,12 @@
 #include "Vk/Descriptors/DescriptorBuilder.h"
 #include "vulkan/vulkan_core.h"
 #include "vulkan/vulkan_handles.hpp"
+#include "vulkan/vulkan_structs.hpp"
 
 class ClassicApplication
 {
   public:
-    ClassicApplication () {};
+    ClassicApplication() {};
 
     void Run(const uint32_t winWidth, const uint32_t winHeight);
 
@@ -28,9 +29,9 @@ class ClassicApplication
 
     void InitializeModelPipeline();
     void InitializeAxisPipeline();
-	void InitializeBoundsPipeline();
-	void InitializeFrustumPipeline();
-	void InitializeInstancing();
+    void InitializeBoundsPipeline();
+    void InitializeFrustumPipeline();
+    void InitializeInstancing();
     void InitializeLODCompute();
 
     void RecreateSwapchain();
@@ -40,7 +41,7 @@ class ClassicApplication
     bool OnMousePress(MouseButtonEvent& event);
     bool OnMouseMoved(MouseMovedEvent& event);
     bool OnMouseRelease(MouseButtonEvent& event);
-	bool OnMouseScrolled(MouseScrolledEvent& event);
+    bool OnMouseScrolled(MouseScrolledEvent& event);
 
     bool OnKeyPressed(KeyPressedEvent& event);
     bool OnKeyReleased(KeyReleasedEvent& event);
@@ -56,11 +57,14 @@ class ClassicApplication
     vk::Pipeline m_ModelPipeline;
     vk::PipelineLayout m_ModelPipelineLayout;
 
-	vk::Pipeline m_BoundsPipeline;
-	vk::PipelineLayout m_BoundsPipelineLayout;
+    vk::Pipeline m_BoundsPipeline;
+    vk::PipelineLayout m_BoundsPipelineLayout;
 
-	vk::Pipeline m_FrustumPipeline;
-	vk::PipelineLayout m_FrustumPipelineLayout;
+    vk::Pipeline m_FrustumPipeline;
+    vk::PipelineLayout m_FrustumPipelineLayout;
+
+    vk::Pipeline m_LODPipeline;
+    vk::PipelineLayout m_LODPipelineLayout;
 
     std::vector<VkCore::Buffer> m_MatBuffers;
     std::vector<vk::DescriptorSet> m_MatrixDescriptorSets;
@@ -69,20 +73,40 @@ class ClassicApplication
     VkCore::Buffer m_AxisBuffer;
     VkCore::Buffer m_AxisIndexBuffer;
 
-	VkCore::Buffer m_FrustumBuffer;
-	VkCore::Buffer m_FrustumIndexBuffer;
+    VkCore::Buffer m_FrustumBuffer;
+    VkCore::Buffer m_FrustumIndexBuffer;
 
-	VkCore::Buffer m_InstancesBuffer;
-	vk::DescriptorSet m_InstancesDescSet;
-	vk::DescriptorSetLayout m_InstancesDescSetLayout;
+    VkCore::Buffer m_InstancesBuffer;
+    VkCore::Buffer m_InstanceIndices;
+
+    // VkCore::Buffer m_DrawIndirectCmds;
+
+
+    vk::DescriptorSet m_InstancesDescSet;
+    vk::DescriptorSetLayout m_InstancesDescSetLayout;
 
     glm::vec2 angles = {0.f, 0.f};
 
-    LodPC lod_pc;
 
-	glm::uvec2 m_InstanceSize = glm::uvec3(200);
-	const uint32_t m_InstanceCountMax = m_InstanceSize.x * m_InstanceSize.y;
+    glm::uvec2 m_InstanceSize = glm::uvec3(200);
+    const uint32_t m_InstanceCountMax = m_InstanceSize.x * m_InstanceSize.y;
 
+    // ImGui Params
+    float m_ZenithAngle;
+    float m_AzimuthAngle;
+    bool m_AzimuthSweepEnabled = false;
+    bool m_ZenithSweepEnabled = false;
+    bool m_PossesCamera = true;
+    bool m_EnableCulling = true;
+    int m_InstanceCount = 0;
+    glm::vec3 m_Position;
+
+    LodPC lod_pc = {.frustum = {},
+                    .lod_count = 0,
+                    .max_instances_count = m_InstanceCountMax,
+                    .instances_count = (uint32_t) m_InstanceCount,
+                    .lod_pow = 0.7f,
+                    .enable_culling = false};
 
     FragmentPC fragment_pc = {
         .diffusion_color = glm::vec3(1.f),
@@ -93,30 +117,19 @@ class ClassicApplication
         .cam_view_dir = glm::vec3(0.f),
     };
 
-	SphereModel m_Sphere;
+    SphereModel m_Sphere;
 
-	// ImGui Params
-	float m_ZenithAngle;
-	float m_AzimuthAngle;
-	bool m_AzimuthSweepEnabled = false;
-	bool m_ZenithSweepEnabled = false;
-	bool m_PossesCamera = true;
-	bool m_EnableCulling = true;
-	int m_InstanceCount = 0;
-	glm::vec3 m_Position;
 
-	uint64_t m_Duration = 0;
-	uint64_t m_AvgDuration = 0;
-	uint64_t m_AccDuration = 0;
-	uint32_t m_Counter = 0;
-
+    uint64_t m_Duration = 0;
+    uint64_t m_AvgDuration = 0;
+    uint64_t m_AccDuration = 0;
+    uint32_t m_Counter = 0;
 
 #ifndef VK_MESH_EXT
     PFN_vkCmdDrawMeshTasksNV vkCmdDrawMeshTasksNv;
 #else
     PFN_vkCmdDrawMeshTasksEXT vkCmdDrawMeshTasksEXT;
 #endif
-
 
     VkCore::DescriptorBuilder m_DescriptorBuilder;
 
@@ -127,9 +140,9 @@ class ClassicApplication
 
     ClassicLODModel* m_Model = nullptr;
 
-	std::array<Model*, 3> m_AvailableModels = {nullptr, nullptr, nullptr};
+    std::array<Model*, 3> m_AvailableModels = {nullptr, nullptr, nullptr};
 
     Camera m_Camera;
-	Camera m_FrustumCamera;
-	Camera* m_CurrentCamera = nullptr;
+    Camera m_FrustumCamera;
+    Camera* m_CurrentCamera = nullptr;
 };

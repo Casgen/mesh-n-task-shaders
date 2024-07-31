@@ -17,6 +17,8 @@ workspace("MeshAndTaskShaders")
     -- Configurations have to be defined first before including any other premake.lua files
     configurations({ "Debug", "Release" })
 
+	flags { "MultiProcessorCompile" }
+
     include("MeshletCulling")
     include("MeshInstancing")
 	include("MeshLOD")

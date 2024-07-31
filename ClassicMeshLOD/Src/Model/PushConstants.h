@@ -15,8 +15,10 @@ struct FragmentPC {
 };
 
 struct LodPC {
-    glm::mat4 rotation_mat = glm::identity<glm::mat4>();
-    glm::mat4 scale_mat = glm::identity<glm::mat4>();
+	Frustum frustum = {};
+	uint32_t lod_count = 0;
+	uint32_t max_instances_count = 0;
+	uint32_t instances_count = 0;
 	float lod_pow = 0.7f;
-	uint32_t enable_culling = true;
+	uint32_t enable_culling = false;
 };

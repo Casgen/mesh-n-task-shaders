@@ -12,9 +12,30 @@ layout (binding = 0) uniform MatrixBuffer {
     mat4 proj;
 } mat_buffer;
 
+struct s_instance_info {
+	uint lod;
+	uint index;
+};
+
+struct s_draw_cmd {
+	uint indexCount;
+	uint instanceCount;
+	uint firstIndex;
+	int vertexOffset;
+	uint firstInstance;
+};
+
 layout (std430, set = 1, binding = 0) buffer Instances {
 	mat4 instances[];
 } instance_buffer;
+
+// layout (std430, set = 1, binding = 1) buffer InstanceInfos {
+// 	s_instance_info infos[];
+// } instance_infos;
+// 
+// layout (std430, set = 1, binding = 2) buffer IndirectDrawCmds {
+// 	s_draw_cmd draw_cmds[8];
+// } draw_cmds;
 
 layout (location = 0) out vec3 o_normal; 
 layout (location = 1) out vec3 o_position; 

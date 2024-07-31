@@ -332,6 +332,8 @@ void ClassicApplication::DrawFrame()
         commandBuffer.pushConstants(m_ModelPipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, sizeof(FragmentPC),
                                     &fragment_pc);
 
+        // durationQuery.StartTimestamp(commandBuffer, vk::PipelineStageFlagBits::eVertexShader);
+
         for (uint32_t i = 0; i < m_Model->GetMeshCount(); i++)
         {
             ClassicLODMesh& mesh = m_Model->GetMesh(i);
@@ -339,8 +341,10 @@ void ClassicApplication::DrawFrame()
             commandBuffer.bindVertexBuffers(0, mesh.GetVertexBuffer().GetVkBuffer(), {0});
             commandBuffer.bindIndexBuffer(mesh.GetIndexBuffer().GetVkBuffer(), 0, vk::IndexType::eUint32);
 
-            commandBuffer.drawIndexed(mesh.GetMeshInfo().indexCount[0], 10, 0, 0, 0);
+            commandBuffer.drawIndexed(mesh.GetMeshInfo().indexCount[0], m_InstanceCount, 0, 0, 0);
         }
+
+        // durationQuery.EndTimestamp(commandBuffer, vk::PipelineStageFlagBits::eVertexShader);
     }
 
     {
@@ -613,8 +617,8 @@ bool ClassicApplication::OnMouseMoved(MouseMovedEvent& event)
 
         angles += static_cast<glm::vec2>(diff) * 0.01f;
 
-        lod_pc.rotation_mat = glm::rotate(glm::identity<glm::mat4>(), angles.x, {0.f, 1.f, 0.f});
-        lod_pc.rotation_mat = glm::rotate(lod_pc.rotation_mat, angles.y, {-1.f, 0.f, 0.f});
+        // lod_pc.rotation_mat = glm::rotate(glm::identity<glm::mat4>(), angles.x, {0.f, 1.f, 0.f});
+        // lod_pc.rotation_mat = glm::rotate(lod_pc.rotation_mat, angles.y, {-1.f, 0.f, 0.f});
     }
 
     m_MouseState.UpdatePosition(event.GetPos());
