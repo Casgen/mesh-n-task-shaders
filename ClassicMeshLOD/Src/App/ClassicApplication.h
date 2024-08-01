@@ -107,7 +107,7 @@ class ClassicApplication
     bool m_ZenithSweepEnabled = false;
     bool m_PossesCamera = false;
     bool m_EnableCulling = true;
-    int m_InstanceCount = 50;
+    int m_InstanceCount = 30000;
     glm::vec3 m_Position;
 
     LodPC lod_pc = {.frustum = {},
@@ -133,12 +133,6 @@ class ClassicApplication
     uint64_t m_AvgDuration = 0;
     uint64_t m_AccDuration = 0;
     uint32_t m_Counter = 0;
-
-#ifndef VK_MESH_EXT
-    PFN_vkCmdDrawMeshTasksNV vkCmdDrawMeshTasksNv;
-#else
-    PFN_vkCmdDrawMeshTasksEXT vkCmdDrawMeshTasksEXT;
-#endif
 
     VkCore::DescriptorBuilder m_DescriptorBuilder;
 

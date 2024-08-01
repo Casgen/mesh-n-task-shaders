@@ -26,6 +26,7 @@
 #include "glm/ext/matrix_transform.hpp"
 #include "glm/ext/vector_float3.hpp"
 #include "imgui.h"
+#include "shaderc/shaderc.hpp"
 #include "vulkan/vulkan.hpp"
 #include "vulkan/vulkan_core.h"
 #include "vulkan/vulkan_enums.hpp"
@@ -44,23 +45,9 @@ void ClassicApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 
     m_Renderer = VulkanRenderer("Mesh Application", m_Window,
                                 {VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
-
-#ifndef VK_MESH_EXT
-                                 VK_NV_MESH_SHADER_EXTENSION_NAME,
-#else
-                                 VK_EXT_MESH_SHADER_EXTENSION_NAME,
-#endif
                                  VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME},
                                 {});
     m_Renderer.InitImGui(m_Window, winWidth, winHeight);
-
-#ifndef VK_MESH_EXT
-    vkCmdDrawMeshTasksNv =
-        (PFN_vkCmdDrawMeshTasksNV)vkGetDeviceProcAddr(*VkCore::DeviceManager::GetDevice(), "vkCmdDrawMeshTasksNV");
-#else
-    vkCmdDrawMeshTasksEXT =
-        (PFN_vkCmdDrawMeshTasksEXT)vkGetDeviceProcAddr(*VkCore::DeviceManager::GetDevice(), "vkCmdDrawMeshTasksEXT");
-#endif
 
     m_Camera =
         Camera({-1.f, 3.f, -1.f}, {1.f, 0.5f, 1.f}, (float)m_Window->GetWidth() / m_Window->GetHeight(), 45.f, 50.f);
@@ -101,7 +88,6 @@ void ClassicApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 
     InitializeLODCompute();
     InitializeAxisPipeline();
-    InitializeBoundsPipeline();
     InitializeFrustumPipeline();
 
     Loop();
@@ -114,18 +100,19 @@ void ClassicApplication::InitializeModelPipeline()
     m_Model = new ClassicLODModel("ClassicMeshLOD/Res/Artwork/OBJs/kitten_lod0.obj");
 
     const std::vector<VkCore::ShaderData> shaders =
-        VkCore::ShaderLoader::LoadClassicShaders("ClassicMeshLOD/Res/Shaders/lod", false);
+        VkCore::ShaderLoader::LoadClassicShaders("ClassicMeshLOD/Res/Shaders/lod");
 
     ClassicLODMeshInfo meshInfo = m_Model->GetMesh(0).GetMeshInfo();
 
     m_LODMeshInfo = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer);
     m_LODMeshInfo.InitializeOnGpu(&meshInfo, sizeof(ClassicLODMeshInfo));
 
-    m_DescriptorBuilder.Clear();
     m_DescriptorBuilder
         .BindBuffer(0, m_LODMeshInfo, vk::DescriptorType::eStorageBuffer,
                     vk::ShaderStageFlagBits::eCompute | vk::ShaderStageFlagBits::eVertex)
         .Build(m_LODMeshInfoSet, m_LODMeshInfoSetLayout);
+
+    m_DescriptorBuilder.Clear();
 
     VkCore::VertexAttributeBuilder attributeBuilder = Vertex::CreateAttributeBuilder();
 
@@ -150,18 +137,19 @@ void ClassicApplication::InitializeModelPipeline()
 
 void ClassicApplication::InitializeLODCompute()
 {
+
     VkCore::ShaderData computeShader =
-        VkCore::ShaderLoader::LoadComputeShader("ClassicMeshLOD/Res/Shaders/lod_compute.comp", false);
+        VkCore::ShaderLoader::LoadComputeShader("ClassicMeshLOD/Res/Shaders/lod_compute.comp");
 
     VkCore::ComputePipelineBuilder pipelineBuilder{};
 
     m_ScratchBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer);
     m_ScratchBuffer.InitializeOnGpu(sizeof(InstanceInfo) * m_InstanceCountMax);
 
-    m_DescriptorBuilder.Clear();
     m_DescriptorBuilder
         .BindBuffer(0, m_ScratchBuffer, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eCompute)
         .Build(m_ScratchSet, m_ScratchSetLayout);
+    m_DescriptorBuilder.Clear();
 
     m_LODPipeline = pipelineBuilder.BindShaderModule(computeShader)
                         .AddPushConstantRange<LodPC>(vk::ShaderStageFlagBits::eCompute)
@@ -262,7 +250,7 @@ void ClassicApplication::InitializeFrustumPipeline()
                             .BindVertexAttributes(attributeBuilder)
                             .AddDisabledBlendAttachment()
                             .SetLineWidth(2.f)
-							.AddPushConstantRange<Frustum>(vk::ShaderStageFlagBits::eVertex)
+                            .AddPushConstantRange<Frustum>(vk::ShaderStageFlagBits::eVertex)
                             .AddDescriptorLayout(m_MatrixDescSetLayout)
                             .SetPrimitiveAssembly(vk::PrimitiveTopology::eLineList)
                             .AddDynamicState(vk::DynamicState::eScissor)
@@ -309,6 +297,7 @@ void ClassicApplication::InitializeInstancing()
         .BindBuffer(2, m_DrawIndirectCmds, vk::DescriptorType::eStorageBuffer,
                     vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eCompute)
         .Build(m_InstancesDescSet, m_InstancesDescSetLayout);
+    m_DescriptorBuilder.Clear();
 }
 
 void ClassicApplication::DrawFrame()
@@ -343,7 +332,6 @@ void ClassicApplication::DrawFrame()
 
     Frustum frustum = m_FrustumCamera.CalculateFrustum();
     lod_pc.frustum = frustum;
-
 
     fragment_pc.cam_pos = m_CurrentCamera->GetPosition();
     fragment_pc.cam_view_dir = m_CurrentCamera->GetViewDirection();
@@ -380,7 +368,7 @@ void ClassicApplication::DrawFrame()
         memoryBarrier.srcAccessMask = vk::AccessFlagBits::eShaderWrite;
         memoryBarrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
 
-        cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eVertexShader,
+        cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eDrawIndirect,
                                   {}, memoryBarrier, {}, {});
     }
 
@@ -430,7 +418,8 @@ void ClassicApplication::DrawFrame()
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_FrustumPipelineLayout, 0, 1,
                                      &m_MatrixDescriptorSets[imageIndex], 0, nullptr);
 
-		cmdBuffer.pushConstants(m_FrustumPipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(Frustum), &frustum);	
+        cmdBuffer.pushConstants(m_FrustumPipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(Frustum),
+                                &frustum);
 
         cmdBuffer.bindVertexBuffers(0, m_FrustumBuffer.GetVkBuffer(), {0});
 
@@ -570,6 +559,8 @@ void ClassicApplication::Shutdown()
 {
 
     VkCore::Device& device = VkCore::DeviceManager::GetDevice();
+
+    device.WaitIdle();
 
     m_Renderer.m_Swapchain.Destroy();
 

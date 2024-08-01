@@ -22,6 +22,16 @@ VulkanRenderer::VulkanRenderer(const std::string& title, VkCore::Window* window,
         VkCore::DeviceManager::AddDeviceExtension(ext);
     }
 
+	const auto it = std::find_if(deviceExtensions.begin(), deviceExtensions.end(), [&](const char* const& item) {
+		return std::strcmp(item, VK_EXT_MESH_SHADER_EXTENSION_NAME) == 0 || std::strcmp(item, VK_NV_MESH_SHADER_EXTENSION_NAME);
+	});
+
+	if (it != deviceExtensions.end())
+	{
+		m_IsMeshShadingEnabled = true;
+	}
+
+
     std::vector<const char*> reqInstanceExtensions = instanceExtensions;
     std::vector<const char*> layers;
 
@@ -97,7 +107,7 @@ VulkanRenderer::VulkanRenderer(const std::string& title, VkCore::Window* window,
     m_Surface = surface;
 
     // Init Devices
-    VkCore::DeviceManager::Initialize(m_Instance, m_Surface);
+    VkCore::DeviceManager::Initialize(m_Instance, m_Surface, m_IsMeshShadingEnabled);
 
     // Init Services
     VkCore::VmaAllocatorService* allocationService = new VkCore::VmaAllocatorService(m_Instance);

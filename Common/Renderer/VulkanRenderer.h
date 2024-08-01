@@ -116,4 +116,6 @@ class VulkanRenderer
     uint32_t m_CurrentFrame = 0;
     VkCore::SwapchainRenderPass m_RenderPass;
     std::vector<vk::Framebuffer> m_FrameBuffers;
+
+	bool m_IsMeshShadingEnabled = false;
 };

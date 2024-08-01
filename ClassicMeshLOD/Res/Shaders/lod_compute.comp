@@ -8,6 +8,8 @@ layout (std430, binding = 0) buffer LODMeshInfo {
     uint index_count[8];
     uint index_offset[8];
     uint vertex_count[8];
+	vec3 sphere_center;
+	float sphere_radius;
     uint lod_count;
 } lod_mesh_info;
 
@@ -86,7 +88,7 @@ void main() {
 
 	atomicAdd(draw_cmds.cmds[lod].instance_count, 1);
 
-	memoryBarrierBuffer();
+	barrier();
 	
 	if (instance_id < lod_mesh_info.lod_count && draw_cmds.cmds[instance_id].instance_count > 0) {
 
@@ -104,6 +106,7 @@ void main() {
 		uint instance_index = cmd.first_instance;
 		uint max_offset = cmd.first_instance + cmd.instance_count;
 
+
 		uint i = 0;
 
 		while (instance_index < max_offset) {
@@ -115,6 +118,8 @@ void main() {
 
 			i++;
 		}
+
+		debugPrintfEXT("GID: %d, offset: %d + %d = %d\n", instance_id, instance_index, cmd.instance_count, max_offset);
 
 	}
 
