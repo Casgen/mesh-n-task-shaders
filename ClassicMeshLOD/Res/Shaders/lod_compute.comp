@@ -4,12 +4,11 @@
 
 layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
 
-
 layout (std430, binding = 0) buffer LODMeshInfo {
-    uint indexCount[8];
-    uint indexOffset[8];
-    uint vertexCount[8];
-    uint LodCount;
+    uint index_count[8];
+    uint index_offset[8];
+    uint vertex_count[8];
+    uint lod_count;
 } lod_mesh_info;
 
 layout (std430, set = 1, binding = 0) buffer Instances {
@@ -26,17 +25,20 @@ layout (std430, set = 1, binding = 1) buffer InstanceInfos {
 } instance_infos;
 
 struct DrawCmd {
-	uint indexCount;
-	uint instanceCount;
-	uint firstIndex;
-	int vertexOffset;
-	uint firstInstance;
+	uint index_count;
+	uint instance_count;
+	uint first_index;
+	int vertex_offset;
+	uint first_instance;
 };
 
 layout (std430, set = 1, binding = 2) buffer IndirectDrawCmds {
 	DrawCmd cmds[8];
 } draw_cmds;
 
+layout (std430, set = 2, binding = 0) buffer ScratchBuffer {
+	InstanceInfo infos[];
+} scratch_buffer;
 
 struct Frustum {
 	vec3 left;
@@ -53,7 +55,7 @@ struct Frustum {
 	float zenith;
 };
 
-layout (push_constant, std430) uniform FrustumPC {
+layout (push_constant, std430) uniform LodPC {
     Frustum u_frustum;
 	uint u_lod_count;
 	uint u_max_instance_count;
@@ -68,16 +70,53 @@ uint calculate_lod(uint instance_index) {
 	float distance = length(instance_pos - u_frustum.point_sides);
 	float lod_f = pow(distance, u_lod_pow);
 	
-	return uint(clamp(lod_f, 0.f, u_lod_count - 1));
+	return uint(clamp(lod_f, 0.f, lod_mesh_info.lod_count - 1));
 }
 
 void main() {
-	
-	uint instance_id = gl_GlobalInvocationID.x; 
-	
-	instance_infos.infos[instance_id].index = instance_id;
-	instance_infos.infos[instance_id].lod = calculate_lod(instance_id);
 
+	uint instance_id = gl_GlobalInvocationID.x; 
+
+	if (instance_id >= u_instance_count) {
+		return;
+	}
+
+	uint lod = calculate_lod(instance_id);
+	scratch_buffer.infos[instance_id].lod = lod;
+
+	atomicAdd(draw_cmds.cmds[lod].instance_count, 1);
+
+	memoryBarrierBuffer();
 	
+	if (instance_id < lod_mesh_info.lod_count && draw_cmds.cmds[instance_id].instance_count > 0) {
+
+		draw_cmds.cmds[instance_id].index_count = lod_mesh_info.index_count[instance_id];
+		draw_cmds.cmds[instance_id].first_index = lod_mesh_info.index_offset[instance_id];
+		draw_cmds.cmds[instance_id].vertex_offset = 0;
+		draw_cmds.cmds[instance_id].first_instance = 0;
+
+		for (uint i = 0; i < instance_id; i++) {
+			draw_cmds.cmds[instance_id].first_instance += draw_cmds.cmds[i].instance_count;
+		}
+
+		DrawCmd cmd = draw_cmds.cmds[instance_id];
+
+		uint instance_index = cmd.first_instance;
+		uint max_offset = cmd.first_instance + cmd.instance_count;
+
+		uint i = 0;
+
+		while (instance_index < max_offset) {
+			if (scratch_buffer.infos[i].lod == instance_id) {
+				instance_infos.infos[instance_index].index = i;
+				instance_infos.infos[instance_index].lod = instance_id;
+				instance_index++;
+			}
+
+			i++;
+		}
+
+	}
+
 
 }

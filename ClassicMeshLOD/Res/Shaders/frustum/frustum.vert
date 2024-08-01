@@ -23,8 +23,11 @@ layout (binding = 0) uniform MatrixBuffer {
     mat4 model;
     mat4 view;
     mat4 proj;
-	Frustum frustum;
 } mat_buffer;
+
+layout (push_constant, std430) uniform FrustumPC {
+	Frustum u_frustum;
+};
 
 layout (location = 0) out vec3 o_color;
 
@@ -37,9 +40,9 @@ vec3 rotateAroundAxis(const vec3 vec, const vec3 axis, const float angle) {
 
 void main() {
 
-	vec3 rotatedVert1 = rotateAroundAxis(a_position, vec3(0.f, 1.f, 0.f), mat_buffer.frustum.azimuth);
-	vec3 rotatedVert2 = rotateAroundAxis(rotatedVert1, mat_buffer.frustum.side_vec, -mat_buffer.frustum.zenith);
+	vec3 rotatedVert1 = rotateAroundAxis(a_position, vec3(0.f, 1.f, 0.f), u_frustum.azimuth);
+	vec3 rotatedVert2 = rotateAroundAxis(rotatedVert1, u_frustum.side_vec, -u_frustum.zenith);
 
-	gl_Position = mat_buffer.proj * mat_buffer.view * vec4(rotatedVert2 + mat_buffer.frustum.point_sides, 1.f);
+	gl_Position = mat_buffer.proj * mat_buffer.view * vec4(rotatedVert2 + u_frustum.point_sides, 1.f);
 	o_color = a_color;
 }

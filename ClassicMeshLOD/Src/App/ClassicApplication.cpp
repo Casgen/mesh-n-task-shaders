@@ -64,7 +64,7 @@ void ClassicApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 
     m_Camera =
         Camera({-1.f, 3.f, -1.f}, {1.f, 0.5f, 1.f}, (float)m_Window->GetWidth() / m_Window->GetHeight(), 45.f, 50.f);
-    m_CurrentCamera = &m_FrustumCamera;
+    m_CurrentCamera = &m_Camera;
     m_FrustumCamera =
         Camera({-1.f, 3.f, -1.f}, {1.f, 0.5f, 1.f}, (float)m_Window->GetWidth() / m_Window->GetHeight(), 45.f, 40.f);
 
@@ -116,14 +116,15 @@ void ClassicApplication::InitializeModelPipeline()
     const std::vector<VkCore::ShaderData> shaders =
         VkCore::ShaderLoader::LoadClassicShaders("ClassicMeshLOD/Res/Shaders/lod", false);
 
-
     ClassicLODMeshInfo meshInfo = m_Model->GetMesh(0).GetMeshInfo();
 
     m_LODMeshInfo = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer);
     m_LODMeshInfo.InitializeOnGpu(&meshInfo, sizeof(ClassicLODMeshInfo));
 
+    m_DescriptorBuilder.Clear();
     m_DescriptorBuilder
-        .BindBuffer(0, m_LODMeshInfo, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eCompute | vk::ShaderStageFlagBits::eVertex)
+        .BindBuffer(0, m_LODMeshInfo, vk::DescriptorType::eStorageBuffer,
+                    vk::ShaderStageFlagBits::eCompute | vk::ShaderStageFlagBits::eVertex)
         .Build(m_LODMeshInfoSet, m_LODMeshInfoSetLayout);
 
     VkCore::VertexAttributeBuilder attributeBuilder = Vertex::CreateAttributeBuilder();
@@ -154,10 +155,19 @@ void ClassicApplication::InitializeLODCompute()
 
     VkCore::ComputePipelineBuilder pipelineBuilder{};
 
+    m_ScratchBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer);
+    m_ScratchBuffer.InitializeOnGpu(sizeof(InstanceInfo) * m_InstanceCountMax);
+
+    m_DescriptorBuilder.Clear();
+    m_DescriptorBuilder
+        .BindBuffer(0, m_ScratchBuffer, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eCompute)
+        .Build(m_ScratchSet, m_ScratchSetLayout);
+
     m_LODPipeline = pipelineBuilder.BindShaderModule(computeShader)
                         .AddPushConstantRange<LodPC>(vk::ShaderStageFlagBits::eCompute)
-						.AddDescriptorLayout(m_LODMeshInfoSetLayout)
+                        .AddDescriptorLayout(m_LODMeshInfoSetLayout)
                         .AddDescriptorLayout(m_InstancesDescSetLayout)
+                        .AddDescriptorLayout(m_ScratchSetLayout)
                         .Build(m_LODPipelineLayout);
 }
 
@@ -252,6 +262,7 @@ void ClassicApplication::InitializeFrustumPipeline()
                             .BindVertexAttributes(attributeBuilder)
                             .AddDisabledBlendAttachment()
                             .SetLineWidth(2.f)
+							.AddPushConstantRange<Frustum>(vk::ShaderStageFlagBits::eVertex)
                             .AddDescriptorLayout(m_MatrixDescSetLayout)
                             .SetPrimitiveAssembly(vk::PrimitiveTopology::eLineList)
                             .AddDynamicState(vk::DynamicState::eScissor)
@@ -286,7 +297,8 @@ void ClassicApplication::InitializeInstancing()
     m_InstanceIndices.InitializeOnGpu(instances.size() * sizeof(InstanceInfo));
 
     m_DrawIndirectCmds =
-        VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eIndirectBuffer);
+        VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eIndirectBuffer |
+                       vk::BufferUsageFlagBits::eTransferDst);
     m_DrawIndirectCmds.InitializeOnGpu(Constants::MAX_LOD_LEVELS * sizeof(vk::DrawIndexedIndirectCommand));
 
     m_DescriptorBuilder
@@ -329,7 +341,9 @@ void ClassicApplication::DrawFrame()
     ubo.m_Proj = m_CurrentCamera->GetProjMatrix();
     ubo.m_View = m_CurrentCamera->GetViewMatrix();
 
-    lod_pc.frustum = m_FrustumCamera.CalculateFrustum();
+    Frustum frustum = m_FrustumCamera.CalculateFrustum();
+    lod_pc.frustum = frustum;
+
 
     fragment_pc.cam_pos = m_CurrentCamera->GetPosition();
     fragment_pc.cam_view_dir = m_CurrentCamera->GetViewDirection();
@@ -337,85 +351,91 @@ void ClassicApplication::DrawFrame()
     m_MatBuffers[imageIndex].UpdateData(&ubo);
 
     m_Renderer.BeginCmdBuffer();
-    vk::CommandBuffer commandBuffer = m_Renderer.GetCurrentCmdBuffer();
+    vk::CommandBuffer cmdBuffer = m_Renderer.GetCurrentCmdBuffer();
 
     DurationQuery durationQuery;
 
-    durationQuery.Reset(commandBuffer);
+    durationQuery.Reset(cmdBuffer);
 
     {
-        commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, m_LODPipeline);
-        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, m_LODPipelineLayout, 0, {m_LODMeshInfoSet, m_InstancesDescSet}, {});
+        cmdBuffer.fillBuffer(m_DrawIndirectCmds.GetVkBuffer(), 0, m_DrawIndirectCmds.GetSize(), 0);
 
+        vk::BufferMemoryBarrier drawIndirectBarrier = m_DrawIndirectCmds.CreateBufferMemoryBarrier(
+            vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eShaderRead | vk::AccessFlagBits::eShaderWrite);
 
-        commandBuffer.pushConstants(m_LODPipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(LodPC), &lod_pc);
+        cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eComputeShader, {},
+                                  {}, drawIndirectBarrier, {});
 
-        commandBuffer.dispatch(((uint32_t)m_InstanceCount / 32) + 1, 1, 1);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, m_LODPipeline);
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, m_LODPipelineLayout, 0,
+                                     {m_LODMeshInfoSet, m_InstancesDescSet, m_ScratchSet}, {});
+
+        cmdBuffer.pushConstants(m_LODPipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(LodPC), &lod_pc);
+
+        durationQuery.StartTimestamp(cmdBuffer, vk::PipelineStageFlagBits::eComputeShader);
+
+        cmdBuffer.dispatch(((uint32_t)m_InstanceCount / 32) + 1, 1, 1);
 
         vk::MemoryBarrier memoryBarrier;
         memoryBarrier.srcAccessMask = vk::AccessFlagBits::eShaderWrite;
         memoryBarrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
 
-        commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader,
-                                      vk::PipelineStageFlagBits::eVertexShader, {}, memoryBarrier, {}, {});
+        cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eVertexShader,
+                                  {}, memoryBarrier, {}, {});
     }
 
     m_Renderer.BeginRenderPass({0.3f, 0.f, 0.2f, 1.f}, m_Window->GetWidth(), m_Window->GetHeight());
 
     vk::Rect2D scissor = vk::Rect2D({0, 0}, {m_Window->GetWidth(), m_Window->GetHeight()});
-    commandBuffer.setScissor(0, 1, &scissor);
+    cmdBuffer.setScissor(0, 1, &scissor);
 
     vk::Viewport viewport = vk::Viewport(0, 0, m_Window->GetWidth(), m_Window->GetHeight(), 0, 1);
-    commandBuffer.setViewport(0, 1, &viewport);
+    cmdBuffer.setViewport(0, 1, &viewport);
 
     {
 
-        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_ModelPipeline);
-        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_ModelPipelineLayout, 0, 1,
-                                         &m_MatrixDescriptorSets[imageIndex], 0, nullptr);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_ModelPipeline);
 
-        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_ModelPipelineLayout, 1, 1,
-                                         &m_InstancesDescSet, 0, nullptr);
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_ModelPipelineLayout, 0,
+                                     {m_MatrixDescriptorSets[imageIndex], m_InstancesDescSet}, {});
 
-        commandBuffer.pushConstants(m_ModelPipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, sizeof(FragmentPC),
-                                    &fragment_pc);
+        cmdBuffer.pushConstants(m_ModelPipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, sizeof(FragmentPC),
+                                &fragment_pc);
 
-        durationQuery.StartTimestamp(commandBuffer, vk::PipelineStageFlagBits::eVertexShader);
+        ClassicLODMesh& mesh = m_Model->GetMesh(0);
 
-        for (uint32_t i = 0; i < m_Model->GetMeshCount(); i++)
-        {
-            ClassicLODMesh& mesh = m_Model->GetMesh(i);
+        cmdBuffer.bindVertexBuffers(0, mesh.GetVertexBuffer().GetVkBuffer(), {0});
+        cmdBuffer.bindIndexBuffer(mesh.GetIndexBuffer().GetVkBuffer(), 0, vk::IndexType::eUint32);
 
-            commandBuffer.bindVertexBuffers(0, mesh.GetVertexBuffer().GetVkBuffer(), {0});
-            commandBuffer.bindIndexBuffer(mesh.GetIndexBuffer().GetVkBuffer(), 0, vk::IndexType::eUint32);
+        cmdBuffer.drawIndexedIndirect(m_DrawIndirectCmds.GetVkBuffer(), 0, mesh.GetMeshInfo().LodCount,
+                                      sizeof(vk::DrawIndexedIndirectCommand));
 
-            commandBuffer.drawIndexed(mesh.GetMeshInfo().indexCount[0], m_InstanceCount, 0, 0, 0);
-        }
-
-        durationQuery.EndTimestamp(commandBuffer, vk::PipelineStageFlagBits::eVertexShader);
+        durationQuery.EndTimestamp(cmdBuffer, vk::PipelineStageFlagBits::eFragmentShader);
     }
 
     {
-        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_AxisPipeline);
-        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_AxisPipelineLayout, 0, 1,
-                                         &m_MatrixDescriptorSets[imageIndex], 0, nullptr);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_AxisPipeline);
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_AxisPipelineLayout, 0, 1,
+                                     &m_MatrixDescriptorSets[imageIndex], 0, nullptr);
 
-        commandBuffer.bindVertexBuffers(0, m_AxisBuffer.GetVkBuffer(), {0});
+        cmdBuffer.bindVertexBuffers(0, m_AxisBuffer.GetVkBuffer(), {0});
 
-        commandBuffer.bindIndexBuffer(m_AxisIndexBuffer.GetVkBuffer(), 0, vk::IndexType::eUint32);
-        commandBuffer.drawIndexed(6, 1, 0, 0, 0);
+        cmdBuffer.bindIndexBuffer(m_AxisIndexBuffer.GetVkBuffer(), 0, vk::IndexType::eUint32);
+        cmdBuffer.drawIndexed(6, 1, 0, 0, 0);
     }
 
     {
 
-        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_FrustumPipeline);
-        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_FrustumPipelineLayout, 0, 1,
-                                         &m_MatrixDescriptorSets[imageIndex], 0, nullptr);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_FrustumPipeline);
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_FrustumPipelineLayout, 0, 1,
+                                     &m_MatrixDescriptorSets[imageIndex], 0, nullptr);
 
-        commandBuffer.bindVertexBuffers(0, m_FrustumBuffer.GetVkBuffer(), {0});
+		cmdBuffer.pushConstants(m_FrustumPipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(Frustum), &frustum);	
 
-        commandBuffer.bindIndexBuffer(m_FrustumIndexBuffer.GetVkBuffer(), 0, vk::IndexType::eUint32);
-        commandBuffer.drawIndexed(32, 1, 0, 0, 0);
+        cmdBuffer.bindVertexBuffers(0, m_FrustumBuffer.GetVkBuffer(), {0});
+
+        cmdBuffer.bindIndexBuffer(m_FrustumIndexBuffer.GetVkBuffer(), 0, vk::IndexType::eUint32);
+        cmdBuffer.drawIndexed(32, 1, 0, 0, 0);
     }
 
     {
@@ -430,14 +450,21 @@ void ClassicApplication::DrawFrame()
 
         if (ImGui::Begin("Instancing", &open))
         {
-            ImGui::Text("Task/Mesh Shader execution in ms: %.4f", m_Duration / 1000000.f);
-            ImGui::Text("Avg. Task/Mesh Shader execution in ms: %.4f", m_AvgDuration / 1000000.f);
+            ImGui::Text("Drawing execution in ms: %.4f", m_Duration / 1000000.f);
+            ImGui::Text("Avg. Drawing execution in ms: %.4f", m_AvgDuration / 1000000.f);
             ImGui::Text("Instance Count");
-            ImGui::SliderInt("##Instance Count", &m_InstanceCount, 0, (int)m_InstanceCountMax, "%d",
-                             ImGuiSliderFlags_AlwaysClamp);
+            if (ImGui::SliderInt("##Instance Count", &m_InstanceCount, 0, (int)m_InstanceCountMax, "%d",
+                                 ImGuiSliderFlags_AlwaysClamp))
+            {
+                lod_pc.instances_count = (uint32_t)m_InstanceCount;
+            }
 
             ImGui::Text("LOD Exponent");
             ImGui::SliderFloat("##LOD Exponent", &lod_pc.lod_pow, 0, 1.f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+
+            ImGui::Text("Show LODs with color");
+            ImGui::SameLine();
+            ImGui::Checkbox("##Show LODs with color", (bool*)&fragment_pc.lod_color);
 
             ImGui::Text("Enable culling");
             ImGui::SameLine();
@@ -502,11 +529,11 @@ void ClassicApplication::DrawFrame()
             ImGui::End();
         }
 
-        m_Renderer.ImGuiRender(commandBuffer);
+        m_Renderer.ImGuiRender(cmdBuffer);
     }
 
     uint32_t endDrawResult = m_Renderer.EndDraw();
-    // m_AccDuration += m_Duration = durationQuery.GetResults();
+    m_AccDuration += m_Duration = durationQuery.GetResults();
 
     m_Counter++;
     m_Counter %= 180;
@@ -558,6 +585,9 @@ void ClassicApplication::Shutdown()
     device.DestroyPipeline(m_FrustumPipeline);
     device.DestroyPipelineLayout(m_FrustumPipelineLayout);
 
+    device.DestroyPipeline(m_LODPipeline);
+    device.DestroyPipelineLayout(m_LODPipelineLayout);
+
     m_Model->Destroy();
 
     m_AxisBuffer.Destroy();
@@ -565,6 +595,10 @@ void ClassicApplication::Shutdown()
 
     m_FrustumBuffer.Destroy();
     m_FrustumIndexBuffer.Destroy();
+
+    m_DrawIndirectCmds.Destroy();
+    m_InstancesBuffer.Destroy();
+    m_InstanceIndices.Destroy();
 
     for (VkCore::Buffer& buffer : m_MatBuffers)
     {

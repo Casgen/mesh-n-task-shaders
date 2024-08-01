@@ -12,6 +12,7 @@ struct FragmentPC {
     alignas(16) glm::vec3 direction;
     alignas(16) glm::vec3 cam_pos;
     alignas(16) glm::vec3 cam_view_dir;
+	uint32_t lod_color = false;
 };
 
 struct LodPC {

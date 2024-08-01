@@ -4,6 +4,7 @@
 
 layout (location = 0) in vec3 i_normal;
 layout (location = 1) in vec3 i_position;
+layout (location = 2) in vec3 i_color;
 
 layout (location = 0) out vec4 o_color;
 
@@ -14,12 +15,20 @@ layout (push_constant, std430) uniform DirectionalLightProps {
     vec3 u_light_dir;
     vec3 u_cam_pos;
     vec3 u_view_dir;
+	bool lod_color;
 };
 
 
 void main() {
 
-	vec4 color = vec4(normalize(i_normal) * 0.5 + 0.5, 1.f);
+	vec4 color;
+
+	if (lod_color) {
+		color = vec4(i_color, 1.f);
+	} else {
+		color = vec4(normalize(i_normal) * 0.5 + 0.5, 1.f);
+	}
+
     
     float diffuse = max(dot(normalize(i_normal), normalize(u_light_dir)), 0.f);
 

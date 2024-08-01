@@ -79,6 +79,9 @@ class ClassicApplication
     VkCore::Buffer m_InstancesBuffer;
     VkCore::Buffer m_InstanceIndices;
 
+    VkCore::Buffer m_ScratchBuffer;
+
+
 	VkCore::Buffer m_LODMeshInfo;
     VkCore::Buffer m_DrawIndirectCmds;
 
@@ -87,6 +90,9 @@ class ClassicApplication
 
     vk::DescriptorSet m_InstancesDescSet;
     vk::DescriptorSetLayout m_InstancesDescSetLayout;
+	
+    vk::DescriptorSet m_ScratchSet;
+    vk::DescriptorSetLayout m_ScratchSetLayout;
 
     glm::vec2 angles = {0.f, 0.f};
 
@@ -99,9 +105,9 @@ class ClassicApplication
     float m_AzimuthAngle;
     bool m_AzimuthSweepEnabled = false;
     bool m_ZenithSweepEnabled = false;
-    bool m_PossesCamera = true;
+    bool m_PossesCamera = false;
     bool m_EnableCulling = true;
-    int m_InstanceCount = 100;
+    int m_InstanceCount = 50;
     glm::vec3 m_Position;
 
     LodPC lod_pc = {.frustum = {},
