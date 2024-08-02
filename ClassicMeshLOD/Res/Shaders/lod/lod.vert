@@ -32,8 +32,8 @@ layout (std430, set = 1, binding = 0) buffer Instances {
 } instance_buffer;
 
 layout (std430, set = 1, binding = 1) buffer InstanceInfos {
-	s_instance_info infos[];
-} instance_infos;
+	uint indices[];
+} instances_indirect;
 
 layout (std430, set = 1, binding = 2) buffer IndirectDrawCmds {
 	s_draw_cmd draw_cmds[8];
@@ -57,13 +57,13 @@ layout (location = 2) out vec3 o_color;
 
 void main() {
 
-	mat4 instance_mat = instance_buffer.instances[instance_infos.infos[gl_InstanceIndex].index];
+	mat4 instance_mat = instance_buffer.instances[instances_indirect.indices[gl_InstanceIndex]];
 
 	vec4 vertex = mat_buffer.proj * mat_buffer.view * vec4(a_position + instance_mat[3].xyz, 1.f);
 
 	gl_Position = vertex;
 	o_position = vertex.xyz;
 	o_normal = a_normal;
-	o_color = lod_colors[instance_infos.infos[gl_InstanceIndex].lod];
+	o_color = vec3(1, 0, 0);
 	
 }

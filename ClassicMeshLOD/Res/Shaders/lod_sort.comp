@@ -1,0 +1,98 @@
+#version 460
+
+#extension GL_EXT_debug_printf : enable
+
+layout(local_size_x = 8, local_size_y = 1, local_size_z = 1) in;
+
+layout (std430, binding = 0) buffer LODMeshInfo {
+    uint index_count[8];
+    uint index_offset[8];
+    uint vertex_count[8];
+	vec3 sphere_center;
+	float sphere_radius;
+    uint lod_count;
+} lod_mesh_info;
+
+struct InstanceInfo {
+	uint lod;
+	bool is_visible;
+};
+
+layout (std430, set = 1, binding = 1) buffer InstanceInfos {
+	uint infos[];
+} instance_infos;
+
+struct DrawCmd {
+	uint index_count;
+	uint instance_count;
+	uint first_index;
+	int vertex_offset;
+	uint first_instance;
+};
+
+layout (std430, set = 1, binding = 2) buffer IndirectDrawCmds {
+	DrawCmd cmds[8];
+} draw_cmds;
+
+layout (std430, set = 2, binding = 0) buffer ScratchBuffer {
+	InstanceInfo infos[];
+} scratch_buffer;
+
+struct Frustum {
+	vec3 left;
+	vec3 right;
+	vec3 top;
+	vec3 bottom;
+	vec3 front;
+	vec3 back;
+	vec3 point_sides;
+	vec3 point_front;
+	vec3 point_back;
+	vec3 side_vec;
+	float azimuth;
+	float zenith;
+};
+
+layout (push_constant, std430) uniform LodPC {
+    Frustum u_frustum;
+	uint u_lod_count;
+	uint u_max_instance_count;
+	uint u_instance_count;
+	float u_lod_pow;
+	bool u_enable_culling;
+};
+
+void main() {
+
+	if (gl_GlobalInvocationID.x < lod_mesh_info.lod_count) {
+		uint gid = gl_GlobalInvocationID.x; 
+
+		draw_cmds.cmds[gid].index_count = lod_mesh_info.index_count[gid];
+		draw_cmds.cmds[gid].first_index = lod_mesh_info.index_offset[gid];
+		draw_cmds.cmds[gid].vertex_offset = 0;
+		draw_cmds.cmds[gid].first_instance = 0;
+
+		for (uint i = 0; i < gid; i++) {
+			draw_cmds.cmds[gid].first_instance += draw_cmds.cmds[i].instance_count;
+		}
+
+		DrawCmd cmd = draw_cmds.cmds[gid];
+
+		uint instance_index = cmd.first_instance;
+		uint max_offset = cmd.first_instance + cmd.instance_count;
+
+		uint i = 0;
+
+		while (instance_index < max_offset) {
+			if (scratch_buffer.infos[i].lod == gid && scratch_buffer.infos[i].is_visible) {
+				instance_infos.infos[instance_index] = i;
+				instance_index++;
+			}
+
+			i++;
+		}
+
+	}
+
+
+}

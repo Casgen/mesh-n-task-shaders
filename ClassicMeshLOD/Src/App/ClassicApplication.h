@@ -63,8 +63,11 @@ class ClassicApplication
     vk::Pipeline m_FrustumPipeline;
     vk::PipelineLayout m_FrustumPipelineLayout;
 
-    vk::Pipeline m_LODPipeline;
-    vk::PipelineLayout m_LODPipelineLayout;
+    vk::Pipeline m_LODCalculatePipeline;
+    vk::PipelineLayout m_LODCalculatePipelineLayout;
+
+    vk::Pipeline m_LODPreparePipeline;
+    vk::PipelineLayout m_LODPreparePipelineLayout;
 
     std::vector<VkCore::Buffer> m_MatBuffers;
     std::vector<vk::DescriptorSet> m_MatrixDescriptorSets;
@@ -107,7 +110,7 @@ class ClassicApplication
     bool m_ZenithSweepEnabled = false;
     bool m_PossesCamera = false;
     bool m_EnableCulling = true;
-    int m_InstanceCount = 30000;
+    int m_InstanceCount = 100;
     glm::vec3 m_Position;
 
     LodPC lod_pc = {.frustum = {},
@@ -115,7 +118,7 @@ class ClassicApplication
                     .max_instances_count = m_InstanceCountMax,
                     .instances_count = (uint32_t) m_InstanceCount,
                     .lod_pow = 0.7f,
-                    .enable_culling = false};
+                    .enable_culling = m_EnableCulling};
 
     FragmentPC fragment_pc = {
         .diffusion_color = glm::vec3(1.f),

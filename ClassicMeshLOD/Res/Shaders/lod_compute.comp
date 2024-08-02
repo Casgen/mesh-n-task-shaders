@@ -8,7 +8,7 @@ layout (std430, binding = 0) buffer LODMeshInfo {
     uint index_count[8];
     uint index_offset[8];
     uint vertex_count[8];
-	vec3 sphere_center;
+	vec3 sphere_pos;
 	float sphere_radius;
     uint lod_count;
 } lod_mesh_info;
@@ -19,12 +19,8 @@ layout (std430, set = 1, binding = 0) buffer Instances {
 
 struct InstanceInfo {
 	uint lod;
-	uint index;
+	bool is_visible;
 };
-
-layout (std430, set = 1, binding = 1) buffer InstanceInfos {
-	InstanceInfo infos[];
-} instance_infos;
 
 struct DrawCmd {
 	uint index_count;
@@ -63,8 +59,35 @@ layout (push_constant, std430) uniform LodPC {
 	uint u_max_instance_count;
 	uint u_instance_count;
 	float u_lod_pow;
-	uint u_enable_culling;
+	bool u_enable_culling;
 };
+
+bool is_not_clipped(uint instance_index) {
+
+	if (!u_enable_culling) {
+		return false;
+	}
+
+	vec4 transl_pos = instances.matrices[instance_index] * vec4(lod_mesh_info.sphere_pos, 1.f);
+	vec3 sides_vector = transl_pos.xyz - u_frustum.point_sides;
+
+	float left_distance = dot(sides_vector, u_frustum.left) - lod_mesh_info.sphere_radius; 
+	float right_distance = dot(sides_vector, u_frustum.right) - lod_mesh_info.sphere_radius; 
+	float top_distance = dot(sides_vector, u_frustum.top) - lod_mesh_info.sphere_radius; 
+	float bottom_distance = dot(sides_vector, u_frustum.bottom) - lod_mesh_info.sphere_radius; 
+	float front_distance = dot(transl_pos.xyz - u_frustum.point_front, u_frustum.front) - lod_mesh_info.sphere_radius; 
+	float back_distance = dot(transl_pos.xyz - u_frustum.point_back, u_frustum.back) - lod_mesh_info.sphere_radius; 
+
+	bool is_visible = true;
+	is_visible = is_visible && left_distance < 0.f;
+	is_visible = is_visible && right_distance < 0.f; 
+	is_visible = is_visible && top_distance < 0.f;
+	is_visible = is_visible && bottom_distance < 0.f;
+	is_visible = is_visible && front_distance < 0.f;
+	is_visible = is_visible && back_distance < 0.f;
+
+	return is_visible;
+}
 
 uint calculate_lod(uint instance_index) {
 	vec3 instance_pos = instances.matrices[instance_index][3].xyz;
@@ -86,42 +109,9 @@ void main() {
 	uint lod = calculate_lod(instance_id);
 	scratch_buffer.infos[instance_id].lod = lod;
 
-	atomicAdd(draw_cmds.cmds[lod].instance_count, 1);
+	bool is_visible = is_not_clipped(instance_id);
+	scratch_buffer.infos[instance_id].is_visible = is_visible;
 
-	barrier();
-	
-	if (instance_id < lod_mesh_info.lod_count && draw_cmds.cmds[instance_id].instance_count > 0) {
-
-		draw_cmds.cmds[instance_id].index_count = lod_mesh_info.index_count[instance_id];
-		draw_cmds.cmds[instance_id].first_index = lod_mesh_info.index_offset[instance_id];
-		draw_cmds.cmds[instance_id].vertex_offset = 0;
-		draw_cmds.cmds[instance_id].first_instance = 0;
-
-		for (uint i = 0; i < instance_id; i++) {
-			draw_cmds.cmds[instance_id].first_instance += draw_cmds.cmds[i].instance_count;
-		}
-
-		DrawCmd cmd = draw_cmds.cmds[instance_id];
-
-		uint instance_index = cmd.first_instance;
-		uint max_offset = cmd.first_instance + cmd.instance_count;
-
-
-		uint i = 0;
-
-		while (instance_index < max_offset) {
-			if (scratch_buffer.infos[i].lod == instance_id) {
-				instance_infos.infos[instance_index].index = i;
-				instance_infos.infos[instance_index].lod = instance_id;
-				instance_index++;
-			}
-
-			i++;
-		}
-
-		debugPrintfEXT("GID: %d, offset: %d + %d = %d\n", instance_id, instance_index, cmd.instance_count, max_offset);
-
-	}
-
+	atomicAdd(draw_cmds.cmds[lod].instance_count, uint(is_visible));
 
 }

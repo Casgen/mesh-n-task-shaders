@@ -4,5 +4,5 @@
 
 struct InstanceInfo {
 	uint32_t lod;
-	uint32_t index;
+	uint32_t isVisible;
 };
