@@ -102,7 +102,7 @@ class LODApplication
 	bool m_ZenithSweepEnabled = false;
 	bool m_PossesCamera = true;
 	bool m_EnableCulling = true;
-	int m_InstanceCount = 0;
+	int m_InstanceCount = 30000;
 	glm::vec3 m_Position;
 
 	uint64_t m_Duration = 0;

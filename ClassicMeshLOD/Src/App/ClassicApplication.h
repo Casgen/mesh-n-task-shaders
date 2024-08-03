@@ -83,10 +83,11 @@ class ClassicApplication
     VkCore::Buffer m_InstanceIndices;
 
     VkCore::Buffer m_ScratchBuffer;
-
-
 	VkCore::Buffer m_LODMeshInfo;
-    VkCore::Buffer m_DrawIndirectCmds;
+
+	std::vector<VkCore::Buffer> m_DrawIndirectCmds;
+	std::vector<vk::DescriptorSet> m_DrawIndirectCmdSets;
+	vk::DescriptorSetLayout m_DrawIndirectCmdsLayout;
 
     vk::DescriptorSet m_LODMeshInfoSet;
     vk::DescriptorSetLayout m_LODMeshInfoSetLayout;
@@ -110,7 +111,7 @@ class ClassicApplication
     bool m_ZenithSweepEnabled = false;
     bool m_PossesCamera = false;
     bool m_EnableCulling = true;
-    int m_InstanceCount = 100;
+    int m_InstanceCount = 1000;
     glm::vec3 m_Position;
 
     LodPC lod_pc = {.frustum = {},

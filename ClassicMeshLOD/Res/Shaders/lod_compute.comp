@@ -17,11 +17,6 @@ layout (std430, set = 1, binding = 0) buffer Instances {
 	mat4 matrices[];
 } instances;
 
-struct InstanceInfo {
-	uint lod;
-	bool is_visible;
-};
-
 struct DrawCmd {
 	uint index_count;
 	uint instance_count;
@@ -30,13 +25,13 @@ struct DrawCmd {
 	uint first_instance;
 };
 
-layout (std430, set = 1, binding = 2) buffer IndirectDrawCmds {
+layout (std430, set = 2, binding = 0) buffer ScratchBuffer {
+	uint infos[];
+} scratch_buffer;
+
+layout (std430, set = 3, binding = 0) buffer IndirectDrawCmds {
 	DrawCmd cmds[8];
 } draw_cmds;
-
-layout (std430, set = 2, binding = 0) buffer ScratchBuffer {
-	InstanceInfo infos[];
-} scratch_buffer;
 
 struct Frustum {
 	vec3 left;
@@ -65,7 +60,7 @@ layout (push_constant, std430) uniform LodPC {
 bool is_not_clipped(uint instance_index) {
 
 	if (!u_enable_culling) {
-		return false;
+		return true;
 	}
 
 	vec4 transl_pos = instances.matrices[instance_index] * vec4(lod_mesh_info.sphere_pos, 1.f);
@@ -107,11 +102,10 @@ void main() {
 	}
 
 	uint lod = calculate_lod(instance_id);
-	scratch_buffer.infos[instance_id].lod = lod;
 
-	bool is_visible = is_not_clipped(instance_id);
-	scratch_buffer.infos[instance_id].is_visible = is_visible;
+	uint is_visible = uint(is_not_clipped(instance_id));
+	scratch_buffer.infos[instance_id] = lod | (is_visible << 3);
 
-	atomicAdd(draw_cmds.cmds[lod].instance_count, uint(is_visible));
+	atomicAdd(draw_cmds.cmds[lod].instance_count, is_visible);
 
 }

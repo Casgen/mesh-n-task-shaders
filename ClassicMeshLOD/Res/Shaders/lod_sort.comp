@@ -13,10 +13,6 @@ layout (std430, binding = 0) buffer LODMeshInfo {
     uint lod_count;
 } lod_mesh_info;
 
-struct InstanceInfo {
-	uint lod;
-	bool is_visible;
-};
 
 layout (std430, set = 1, binding = 1) buffer InstanceInfos {
 	uint infos[];
@@ -30,13 +26,13 @@ struct DrawCmd {
 	uint first_instance;
 };
 
-layout (std430, set = 1, binding = 2) buffer IndirectDrawCmds {
+layout (std430, set = 2, binding = 0) buffer ScratchBuffer {
+	uint infos[];
+} scratch_buffer;
+
+layout (std430, set = 3, binding = 0) buffer IndirectDrawCmds {
 	DrawCmd cmds[8];
 } draw_cmds;
-
-layout (std430, set = 2, binding = 0) buffer ScratchBuffer {
-	InstanceInfo infos[];
-} scratch_buffer;
 
 struct Frustum {
 	vec3 left;
@@ -84,7 +80,8 @@ void main() {
 		uint i = 0;
 
 		while (instance_index < max_offset) {
-			if (scratch_buffer.infos[i].lod == gid && scratch_buffer.infos[i].is_visible) {
+			uint info = scratch_buffer.infos[i];
+			if (bool(info & 0x8) && (info & 0x7) == gid) {
 				instance_infos.infos[instance_index] = i;
 				instance_index++;
 			}

@@ -35,10 +35,6 @@ layout (std430, set = 1, binding = 1) buffer InstanceInfos {
 	uint indices[];
 } instances_indirect;
 
-layout (std430, set = 1, binding = 2) buffer IndirectDrawCmds {
-	s_draw_cmd draw_cmds[8];
-} draw_cmds;
-
 vec3 lod_colors[8] = {
   vec3(1,0,0), 
   vec3(0,1,0),

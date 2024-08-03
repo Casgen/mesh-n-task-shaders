@@ -63,9 +63,10 @@ void LODApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 
     m_Camera =
         Camera({-1.f, 3.f, -1.f}, {1.f, 0.5f, 1.f}, (float)m_Window->GetWidth() / m_Window->GetHeight(), 45.f, 50.f);
-    m_CurrentCamera = &m_FrustumCamera;
     m_FrustumCamera =
         Camera({-1.f, 3.f, -1.f}, {1.f, 0.5f, 1.f}, (float)m_Window->GetWidth() / m_Window->GetHeight(), 45.f, 40.f);
+
+    m_CurrentCamera = &m_FrustumCamera;
 
     m_ZenithAngle = m_FrustumCamera.GetZenith();
     m_AzimuthAngle = m_FrustumCamera.GetAzimuth();
@@ -114,7 +115,7 @@ void LODApplication::InitializeModelPipeline()
 
 
     const std::vector<VkCore::ShaderData> shaders =
-        VkCore::ShaderLoader::LoadMeshShaders("MeshLOD/Res/Shaders/lod", false);
+        VkCore::ShaderLoader::LoadMeshShaders("MeshLOD/Res/Shaders/lod");
 
     // Pipeline
     VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice(), true);
@@ -354,7 +355,7 @@ void LODApplication::DrawFrame()
 #endif
         }
 
-        durationQuery.EndTimestamp(commandBuffer, vk::PipelineStageFlagBits::eFragmentShader);
+        durationQuery.EndTimestamp(commandBuffer, vk::PipelineStageFlagBits::eEarlyFragmentTests);
     }
 
     // {
