@@ -80,9 +80,13 @@ class ClassicApplication
     VkCore::Buffer m_FrustumIndexBuffer;
 
     VkCore::Buffer m_InstancesBuffer;
-    VkCore::Buffer m_InstanceIndices;
 
-    VkCore::Buffer m_ScratchBuffer;
+	// Instance Index Buffer
+	std::vector<VkCore::Buffer> m_InstanceIndexBuffers;
+
+	// Instance Index Buffer for intermediate calculations.
+	std::vector<VkCore::Buffer> m_ScratchBuffers;
+
 	VkCore::Buffer m_LODMeshInfo;
 
 	std::vector<VkCore::Buffer> m_DrawIndirectCmds;
@@ -92,10 +96,11 @@ class ClassicApplication
     vk::DescriptorSet m_LODMeshInfoSet;
     vk::DescriptorSetLayout m_LODMeshInfoSetLayout;
 
+	// Descriptor for instance data
     vk::DescriptorSet m_InstancesDescSet;
     vk::DescriptorSetLayout m_InstancesDescSetLayout;
 	
-    vk::DescriptorSet m_ScratchSet;
+	std::vector<vk::DescriptorSet> m_ScratchSets;
     vk::DescriptorSetLayout m_ScratchSetLayout;
 
     glm::vec2 angles = {0.f, 0.f};

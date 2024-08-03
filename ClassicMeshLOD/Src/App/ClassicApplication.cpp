@@ -95,7 +95,7 @@ void ClassicApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 void ClassicApplication::InitializeModelPipeline()
 {
 
-    m_Model = new ClassicLODModel("ClassicMeshLOD/Res/Artwork/OBJs/kitten_lod0.obj");
+    m_Model = new ClassicLODModel("ClassicMeshLOD/Res/Artwork/OBJs/lucy_lod0.obj");
 
     const std::vector<VkCore::ShaderData> shaders =
         VkCore::ShaderLoader::LoadClassicShaders("ClassicMeshLOD/Res/Shaders/lod", false);
@@ -313,19 +313,27 @@ void ClassicApplication::InitializeInstancing()
         m_DescriptorBuilder.Clear();
     }
 
-    m_ScratchBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer);
-    m_ScratchBuffer.InitializeOnGpu(sizeof(uint32_t) * m_InstanceCountMax);
 
-    m_InstanceIndices = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer);
-    m_InstanceIndices.InitializeOnGpu(m_InstanceCountMax * sizeof(uint32_t));
+    for (int i = 0; i < m_Renderer.m_Swapchain.GetImageCount(); i++)
+    {
+		m_ScratchBuffers.emplace_back(vk::BufferUsageFlagBits::eStorageBuffer);
+		m_ScratchBuffers[i].InitializeOnGpu(sizeof(uint32_t) * m_InstanceCountMax);
 
-    m_DescriptorBuilder
-        .BindBuffer(0, m_ScratchBuffer, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eCompute)
-        .BindBuffer(1, m_InstanceIndices, vk::DescriptorType::eStorageBuffer,
-                    vk::ShaderStageFlagBits::eCompute | vk::ShaderStageFlagBits::eVertex)
-        .Build(m_ScratchSet, m_ScratchSetLayout);
+		m_InstanceIndexBuffers.emplace_back(vk::BufferUsageFlagBits::eStorageBuffer);
+		m_InstanceIndexBuffers[i].InitializeOnGpu(m_InstanceCountMax * sizeof(uint32_t));
 
-    m_DescriptorBuilder.Clear();
+		vk::DescriptorSet set;
+
+		m_DescriptorBuilder
+			.BindBuffer(0, m_ScratchBuffers[i], vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eCompute)
+			.BindBuffer(1, m_InstanceIndexBuffers[i], vk::DescriptorType::eStorageBuffer,
+						vk::ShaderStageFlagBits::eCompute | vk::ShaderStageFlagBits::eVertex)
+			.Build(set, m_ScratchSetLayout);
+
+		m_ScratchSets.emplace_back(set);
+
+		m_DescriptorBuilder.Clear();
+	}
 }
 
 void ClassicApplication::DrawFrame()
@@ -369,16 +377,16 @@ void ClassicApplication::DrawFrame()
     m_Renderer.BeginCmdBuffer();
     vk::CommandBuffer cmdBuffer = m_Renderer.GetCurrentCmdBuffer();
 
-    // DurationQuery durationQuery;
-    //
-    // durationQuery.Reset(cmdBuffer);
+    DurationQuery durationQuery;
+
+    durationQuery.Reset(cmdBuffer);
 
     {
         // Compute the LODs
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, m_LODCalculatePipeline);
         cmdBuffer.bindDescriptorSets(
             vk::PipelineBindPoint::eCompute, m_LODCalculatePipelineLayout, 0,
-            {m_LODMeshInfoSet, m_InstancesDescSet, m_ScratchSet, m_DrawIndirectCmdSets[imageIndex]}, {});
+            {m_LODMeshInfoSet, m_InstancesDescSet, m_ScratchSets[imageIndex], m_DrawIndirectCmdSets[imageIndex]}, {});
 
         cmdBuffer.pushConstants(m_LODCalculatePipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(LodPC),
                                 &lod_pc);
@@ -392,7 +400,7 @@ void ClassicApplication::DrawFrame()
         cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader,
                                   {}, {}, drawIndirectBarrier, {});
 
-        // durationQuery.StartTimestamp(cmdBuffer, vk::PipelineStageFlagBits::eComputeShader);
+        durationQuery.StartTimestamp(cmdBuffer, vk::PipelineStageFlagBits::eComputeShader);
 
         cmdBuffer.dispatch(((uint32_t)m_InstanceCount / 32) + 1, 1, 1);
 
@@ -409,7 +417,7 @@ void ClassicApplication::DrawFrame()
 
         cmdBuffer.bindDescriptorSets(
             vk::PipelineBindPoint::eCompute, m_LODPreparePipelineLayout, 0,
-            {m_LODMeshInfoSet, m_InstancesDescSet, m_ScratchSet, m_DrawIndirectCmdSets[imageIndex]}, {});
+            {m_LODMeshInfoSet, m_InstancesDescSet, m_ScratchSets[imageIndex], m_DrawIndirectCmdSets[imageIndex]}, {});
 
         cmdBuffer.pushConstants(m_LODPreparePipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(LodPC),
                                 &lod_pc);
@@ -418,9 +426,9 @@ void ClassicApplication::DrawFrame()
 
         vk::MemoryBarrier memoryBarrier;
         memoryBarrier.srcAccessMask = vk::AccessFlagBits::eShaderWrite;
-        memoryBarrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
+        memoryBarrier.dstAccessMask = vk::AccessFlagBits::eIndirectCommandRead;
 
-        cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eVertexShader,
+        cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eDrawIndirect,
                                   {}, memoryBarrier, {}, {});
     }
 
@@ -437,7 +445,7 @@ void ClassicApplication::DrawFrame()
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_ModelPipeline);
 
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_ModelPipelineLayout, 0,
-                                     {m_MatrixDescriptorSets[imageIndex], m_InstancesDescSet, m_ScratchSet}, {});
+                                     {m_MatrixDescriptorSets[imageIndex], m_InstancesDescSet, m_ScratchSets[imageIndex]}, {});
 
         cmdBuffer.pushConstants(m_ModelPipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, sizeof(FragmentPC),
                                 &fragment_pc);
@@ -450,7 +458,7 @@ void ClassicApplication::DrawFrame()
         cmdBuffer.drawIndexedIndirect(m_DrawIndirectCmds[imageIndex].GetVkBuffer(), 0, mesh.GetMeshInfo().LodCount,
                                       sizeof(vk::DrawIndexedIndirectCommand));
 
-        // durationQuery.EndTimestamp(cmdBuffer, vk::PipelineStageFlagBits::eFragmentShader);
+        durationQuery.EndTimestamp(cmdBuffer, vk::PipelineStageFlagBits::eFragmentShader);
     }
 
     //
@@ -564,7 +572,7 @@ void ClassicApplication::DrawFrame()
     }
 
     uint32_t endDrawResult = m_Renderer.EndDraw();
-    // m_AccDuration += m_Duration = durationQuery.GetResults();
+    m_AccDuration += m_Duration = durationQuery.GetResults();
 
     m_Counter++;
     m_Counter %= 180;
@@ -635,7 +643,16 @@ void ClassicApplication::Shutdown()
     }
 
     m_InstancesBuffer.Destroy();
-    m_InstanceIndices.Destroy();
+
+    for (VkCore::Buffer& buffer : m_InstanceIndexBuffers)
+    {
+        buffer.Destroy();
+    }
+
+    for (VkCore::Buffer& buffer : m_ScratchBuffers)
+    {
+        buffer.Destroy();
+    }
 
     for (VkCore::Buffer& buffer : m_MatBuffers)
     {
@@ -643,6 +660,8 @@ void ClassicApplication::Shutdown()
     }
 
     device.DestroyDescriptorSetLayout(m_MatrixDescSetLayout);
+    device.DestroyDescriptorSetLayout(m_ScratchSetLayout);
+    device.DestroyDescriptorSetLayout(m_InstancesDescSetLayout);
 
     m_DescriptorBuilder.Clear();
     m_DescriptorBuilder.Cleanup();
