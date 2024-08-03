@@ -31,7 +31,7 @@ layout (std430, set = 1, binding = 0) buffer Instances {
 	mat4 instances[];
 } instance_buffer;
 
-layout (std430, set = 1, binding = 1) buffer InstanceInfos {
+layout (std430, set = 2, binding = 1) buffer InstanceInfos {
 	uint indices[];
 } instances_indirect;
 

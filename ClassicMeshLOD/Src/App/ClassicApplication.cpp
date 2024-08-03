@@ -95,10 +95,10 @@ void ClassicApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 void ClassicApplication::InitializeModelPipeline()
 {
 
-    m_Model = new ClassicLODModel("ClassicMeshLOD/Res/Artwork/OBJs/lucy_lod0.obj");
+    m_Model = new ClassicLODModel("ClassicMeshLOD/Res/Artwork/OBJs/kitten_lod0.obj");
 
     const std::vector<VkCore::ShaderData> shaders =
-        VkCore::ShaderLoader::LoadClassicShaders("ClassicMeshLOD/Res/Shaders/lod");
+        VkCore::ShaderLoader::LoadClassicShaders("ClassicMeshLOD/Res/Shaders/lod", false);
 
     ClassicLODMeshInfo meshInfo = m_Model->GetMesh(0).GetMeshInfo();
 
@@ -126,6 +126,7 @@ void ClassicApplication::InitializeModelPipeline()
                           .BindVertexAttributes(attributeBuilder)
                           .AddDescriptorLayout(m_MatrixDescSetLayout)
                           .AddDescriptorLayout(m_InstancesDescSetLayout)
+                          .AddDescriptorLayout(m_ScratchSetLayout)
                           .AddPushConstantRange<FragmentPC>(vk::ShaderStageFlagBits::eFragment)
                           .SetPrimitiveAssembly(vk::PrimitiveTopology::eTriangleList)
                           .AddDynamicState(vk::DynamicState::eScissor)
@@ -137,16 +138,9 @@ void ClassicApplication::InitializeLODCompute()
 {
 
     VkCore::ShaderData computeShader =
-        VkCore::ShaderLoader::LoadComputeShader("ClassicMeshLOD/Res/Shaders/lod_compute.comp");
+        VkCore::ShaderLoader::LoadComputeShader("ClassicMeshLOD/Res/Shaders/lod_compute.comp", false);
 
     VkCore::ComputePipelineBuilder pipelineBuilder{};
-
-    m_ScratchBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer);
-    m_ScratchBuffer.InitializeOnGpu(sizeof(uint32_t) * m_InstanceCountMax);
-
-    m_DescriptorBuilder
-        .BindBuffer(0, m_ScratchBuffer, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eCompute)
-        .Build(m_ScratchSet, m_ScratchSetLayout);
 
     m_LODCalculatePipeline = pipelineBuilder.BindShaderModule(computeShader)
                                  .AddPushConstantRange<LodPC>(vk::ShaderStageFlagBits::eCompute)
@@ -156,7 +150,7 @@ void ClassicApplication::InitializeLODCompute()
                                  .AddDescriptorLayout(m_DrawIndirectCmdsLayout)
                                  .Build(m_LODCalculatePipelineLayout);
 
-    computeShader = VkCore::ShaderLoader::LoadComputeShader("ClassicMeshLOD/Res/Shaders/lod_sort.comp");
+    computeShader = VkCore::ShaderLoader::LoadComputeShader("ClassicMeshLOD/Res/Shaders/lod_sort.comp", false);
 
     pipelineBuilder.Reset();
 
@@ -293,13 +287,8 @@ void ClassicApplication::InitializeInstancing()
     m_InstancesBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer);
     m_InstancesBuffer.InitializeOnGpu(instances.data(), instances.size() * sizeof(glm::mat4));
 
-    m_InstanceIndices = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer);
-    m_InstanceIndices.InitializeOnGpu(instances.size() * sizeof(uint32_t));
-
     m_DescriptorBuilder
         .BindBuffer(0, m_InstancesBuffer, vk::DescriptorType::eStorageBuffer,
-                    vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eCompute)
-        .BindBuffer(1, m_InstanceIndices, vk::DescriptorType::eStorageBuffer,
                     vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eCompute)
         .Build(m_InstancesDescSet, m_InstancesDescSetLayout);
 
@@ -323,6 +312,20 @@ void ClassicApplication::InitializeInstancing()
 
         m_DescriptorBuilder.Clear();
     }
+
+    m_ScratchBuffer = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer);
+    m_ScratchBuffer.InitializeOnGpu(sizeof(uint32_t) * m_InstanceCountMax);
+
+    m_InstanceIndices = VkCore::Buffer(vk::BufferUsageFlagBits::eStorageBuffer);
+    m_InstanceIndices.InitializeOnGpu(m_InstanceCountMax * sizeof(uint32_t));
+
+    m_DescriptorBuilder
+        .BindBuffer(0, m_ScratchBuffer, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eCompute)
+        .BindBuffer(1, m_InstanceIndices, vk::DescriptorType::eStorageBuffer,
+                    vk::ShaderStageFlagBits::eCompute | vk::ShaderStageFlagBits::eVertex)
+        .Build(m_ScratchSet, m_ScratchSetLayout);
+
+    m_DescriptorBuilder.Clear();
 }
 
 void ClassicApplication::DrawFrame()
@@ -373,8 +376,9 @@ void ClassicApplication::DrawFrame()
     {
         // Compute the LODs
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, m_LODCalculatePipeline);
-        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, m_LODCalculatePipelineLayout, 0,
-                                     {m_LODMeshInfoSet, m_InstancesDescSet, m_ScratchSet, m_DrawIndirectCmdSets[imageIndex]}, {});
+        cmdBuffer.bindDescriptorSets(
+            vk::PipelineBindPoint::eCompute, m_LODCalculatePipelineLayout, 0,
+            {m_LODMeshInfoSet, m_InstancesDescSet, m_ScratchSet, m_DrawIndirectCmdSets[imageIndex]}, {});
 
         cmdBuffer.pushConstants(m_LODCalculatePipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(LodPC),
                                 &lod_pc);
@@ -383,7 +387,7 @@ void ClassicApplication::DrawFrame()
                              0);
 
         vk::BufferMemoryBarrier drawIndirectBarrier = m_DrawIndirectCmds[imageIndex].CreateBufferMemoryBarrier(
-            vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead | vk::AccessFlagBits::eShaderWrite);
+            vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eShaderRead | vk::AccessFlagBits::eShaderWrite);
 
         cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader,
                                   {}, {}, drawIndirectBarrier, {});
@@ -403,8 +407,9 @@ void ClassicApplication::DrawFrame()
         // Sort and Prepare the LOD Instances data for drawing
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, m_LODPreparePipeline);
 
-        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, m_LODPreparePipelineLayout, 0,
-                                     {m_LODMeshInfoSet, m_InstancesDescSet, m_ScratchSet, m_DrawIndirectCmdSets[imageIndex] }, {});
+        cmdBuffer.bindDescriptorSets(
+            vk::PipelineBindPoint::eCompute, m_LODPreparePipelineLayout, 0,
+            {m_LODMeshInfoSet, m_InstancesDescSet, m_ScratchSet, m_DrawIndirectCmdSets[imageIndex]}, {});
 
         cmdBuffer.pushConstants(m_LODPreparePipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(LodPC),
                                 &lod_pc);
@@ -432,7 +437,7 @@ void ClassicApplication::DrawFrame()
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_ModelPipeline);
 
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_ModelPipelineLayout, 0,
-                                     {m_MatrixDescriptorSets[imageIndex], m_InstancesDescSet}, {});
+                                     {m_MatrixDescriptorSets[imageIndex], m_InstancesDescSet, m_ScratchSet}, {});
 
         cmdBuffer.pushConstants(m_ModelPipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, sizeof(FragmentPC),
                                 &fragment_pc);

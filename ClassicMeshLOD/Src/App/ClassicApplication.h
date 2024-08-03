@@ -111,7 +111,7 @@ class ClassicApplication
     bool m_ZenithSweepEnabled = false;
     bool m_PossesCamera = false;
     bool m_EnableCulling = true;
-    int m_InstanceCount = 1000;
+    int m_InstanceCount = 50;
     glm::vec3 m_Position;
 
     LodPC lod_pc = {.frustum = {},
