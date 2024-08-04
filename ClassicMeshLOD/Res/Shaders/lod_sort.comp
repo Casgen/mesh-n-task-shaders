@@ -13,9 +13,6 @@ layout (std430, binding = 0) buffer LODMeshInfo {
     uint lod_count;
 } lod_mesh_info;
 
-layout (std430, set = 2, binding = 0) buffer ScratchBuffer {
-	uint infos[];
-} scratch_buffer;
 
 layout (std430, set = 2, binding = 1) buffer InstanceInfos {
 	uint infos[];
@@ -29,6 +26,9 @@ struct DrawCmd {
 	uint first_instance;
 };
 
+layout (std430, set = 2, binding = 0) buffer ScratchBuffer {
+	uint infos[];
+} scratch_buffer;
 
 layout (std430, set = 3, binding = 0) buffer IndirectDrawCmds {
 	DrawCmd cmds[8];
@@ -81,7 +81,7 @@ void main() {
 
 		while (instance_index < max_offset) {
 			uint info = scratch_buffer.infos[i];
-			if (bool(info & 0x8) && (info & 0x7) == gid) {
+			if (info > 0x7 && (info & 0x7) == gid) {
 				instance_infos.infos[instance_index] = i;
 				instance_index++;
 			}
