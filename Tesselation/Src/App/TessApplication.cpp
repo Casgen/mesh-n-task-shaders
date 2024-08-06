@@ -67,7 +67,7 @@ void TessApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
         (PFN_vkCmdSetPolygonModeEXT)vkGetDeviceProcAddr(*VkCore::DeviceManager::GetDevice(), "vkCmdSetPolygonModeEXT");
 
     m_Camera =
-        Camera({0.f, 1.f, -1.f}, {0.f, 0.f, 0.f}, (float)m_Window->GetWidth() / m_Window->GetHeight(), 45.f, 50.f);
+        Camera({-5.f, 5.f, -5.f}, {0.f, 0.f, 0.f}, (float)m_Window->GetWidth() / m_Window->GetHeight(), 45.f, 50.f);
 
     // Create Uniform Buffers
     for (int i = 0; i < m_Renderer.m_Swapchain.GetImageCount(); i++)
@@ -311,6 +311,7 @@ void TessApplication::DrawFrame()
         {
 
             ImGui::Text("Task/Mesh Shader execution in ms: %.4f", m_Duration / 1000000.f);
+            ImGui::Text("Avg. Drawing execution in ms: %.4f", m_AvgDuration / 1000000.f);
             ImGui::Text("Patch Count");
             ImGui::DragInt2("##Patch Count", glm::value_ptr(m_PatchCounts), 1.f, 1, 100, "%d",
                             ImGuiSliderFlags_AlwaysClamp);
@@ -355,7 +356,17 @@ void TessApplication::DrawFrame()
 
     int endDrawResult = m_Renderer.EndCmdBuffer();
 
-    m_Duration = durationQuery.GetResults();
+    m_AccDuration += m_Duration = durationQuery.GetResults();
+
+	
+    m_Counter++;
+    m_Counter %= 180;
+
+    if (m_Counter >= 179)
+    {
+        m_AvgDuration = m_AccDuration / 179;
+        m_AccDuration = 0;
+    }
 
     if (endDrawResult == -1)
     {

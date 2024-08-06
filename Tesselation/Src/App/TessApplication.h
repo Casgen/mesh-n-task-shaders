@@ -75,8 +75,13 @@ class TessApplication
     glm::ivec2 m_PatchCounts = {5, 5};
     VkPolygonMode m_PolygonMode = VK_POLYGON_MODE_FILL;
     bool m_EnableLineMode = false;
-    uint64_t m_Duration = 0;
+
 	int32_t m_GridSize = 1;
+
+    uint64_t m_Duration = 0;
+    uint64_t m_AvgDuration = 0;
+    uint64_t m_AccDuration = 0;
+    uint32_t m_Counter = 0;
 
 	const uint32_t m_NoiseResolution = 2048;
 
