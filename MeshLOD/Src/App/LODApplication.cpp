@@ -3,7 +3,6 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
-#include <iostream>
 #include <stddef.h>
 #include <stdexcept>
 
@@ -111,11 +110,10 @@ void LODApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 void LODApplication::InitializeModelPipeline()
 {
 
-    m_Model = new LODModel("MeshLOD/Res/Artwork/OBJs/kitten_lod0.obj");
-
+    m_Model = new LODModel("MeshLOD/Res/Artwork/OBJs/lucy_lod0.obj");
 
     const std::vector<VkCore::ShaderData> shaders =
-        VkCore::ShaderLoader::LoadMeshShaders("MeshLOD/Res/Shaders/lod");
+        VkCore::ShaderLoader::LoadMeshShaders("MeshLOD/Res/Shaders/lod", true, true);
 
     // Pipeline
     VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice(), true);
@@ -494,16 +492,6 @@ void LODApplication::DrawFrame()
     if (m_Counter >= 179)
     {
         m_AvgDuration = m_AccDuration / 179;
-        // std::printf("L = %.1f;%d;%.3f\n", lod_pc.lod_pow, m_InstanceCount, m_AvgDuration / 1000000.f);
-        // if (lod_pc.lod_pow >= 1.f) {
-        // 	lod_pc.lod_pow = 0.f;
-        // }
-        // m_InstanceCount += 1000;
-        // m_InstanceCount %= 40000;
-        //
-        // if (m_InstanceCount == 0) {
-        // 	lod_pc.lod_pow += 0.1f;
-        // }
         m_AccDuration = 0;
     }
 

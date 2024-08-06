@@ -106,7 +106,7 @@ class ClassicApplication
     glm::vec2 angles = {0.f, 0.f};
 
 
-    glm::uvec2 m_InstanceSize = glm::uvec3(200);
+    glm::uvec2 m_InstanceSize = glm::uvec3(150);
     const uint32_t m_InstanceCountMax = m_InstanceSize.x * m_InstanceSize.y;
 
     // ImGui Params
@@ -114,16 +114,16 @@ class ClassicApplication
     float m_AzimuthAngle;
     bool m_AzimuthSweepEnabled = false;
     bool m_ZenithSweepEnabled = false;
-    bool m_PossesCamera = false;
-    bool m_EnableCulling = true;
-    int m_InstanceCount = 50;
+    bool m_PossesCamera = true;
+    bool m_EnableCulling = false;
+    int m_InstanceCount = 100;
     glm::vec3 m_Position;
 
     LodPC lod_pc = {.frustum = {},
                     .lod_count = 0,
                     .max_instances_count = m_InstanceCountMax,
                     .instances_count = (uint32_t) m_InstanceCount,
-                    .lod_pow = 0.7f,
+                    .lod_pow = 0.0f,
                     .enable_culling = m_EnableCulling};
 
     FragmentPC fragment_pc = {

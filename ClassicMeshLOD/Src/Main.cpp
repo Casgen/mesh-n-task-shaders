@@ -9,5 +9,5 @@ int main(int argc, char* argv[])
 	VertexTriangleAdjacency adj = MeshUtils::BuildVertexTriangleAdjacency(indices, 10);
 
     ClassicApplication app = ClassicApplication();
-    app.Run(1280, 720);
+    app.Run(1920, 1080);
 }

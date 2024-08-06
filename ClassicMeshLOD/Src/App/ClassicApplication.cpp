@@ -49,9 +49,10 @@ void ClassicApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 
     m_Camera =
         Camera({-1.f, 3.f, -1.f}, {1.f, 0.5f, 1.f}, (float)m_Window->GetWidth() / m_Window->GetHeight(), 45.f, 50.f);
-    m_CurrentCamera = &m_Camera;
     m_FrustumCamera =
         Camera({-1.f, 3.f, -1.f}, {1.f, 0.5f, 1.f}, (float)m_Window->GetWidth() / m_Window->GetHeight(), 45.f, 40.f);
+
+    m_CurrentCamera = &m_FrustumCamera;
 
     m_ZenithAngle = m_FrustumCamera.GetZenith();
     m_AzimuthAngle = m_FrustumCamera.GetAzimuth();
@@ -95,10 +96,10 @@ void ClassicApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 void ClassicApplication::InitializeModelPipeline()
 {
 
-    m_Model = new ClassicLODModel("ClassicMeshLOD/Res/Artwork/OBJs/kitten_lod0.obj");
+    m_Model = new ClassicLODModel("ClassicMeshLOD/Res/Artwork/OBJs/lucy_lod0.obj");
 
     const std::vector<VkCore::ShaderData> shaders =
-        VkCore::ShaderLoader::LoadClassicShaders("ClassicMeshLOD/Res/Shaders/lod", false, true);
+        VkCore::ShaderLoader::LoadClassicShaders("ClassicMeshLOD/Res/Shaders/lod");
 
     ClassicLODMeshInfo meshInfo = m_Model->GetMesh(0).GetMeshInfo();
 
@@ -461,22 +462,21 @@ void ClassicApplication::DrawFrame()
         durationQuery.EndTimestamp(cmdBuffer, vk::PipelineStageFlagBits::eFragmentShader);
     }
 
-    //
-    // {
-    //
-    //     cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_FrustumPipeline);
-    //     cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_FrustumPipelineLayout, 0, 1,
-    //                                  &m_MatrixDescriptorSets[imageIndex], 0, nullptr);
-    //
-    //     cmdBuffer.pushConstants(m_FrustumPipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(Frustum),
-    //                             &frustum);
-    //
-    //     cmdBuffer.bindVertexBuffers(0, m_FrustumBuffer.GetVkBuffer(), {0});
-    //
-    //     cmdBuffer.bindIndexBuffer(m_FrustumIndexBuffer.GetVkBuffer(), 0, vk::IndexType::eUint32);
-    //     cmdBuffer.drawIndexed(32, 1, 0, 0, 0);
-    // }
-    //
+    {
+
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_FrustumPipeline);
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_FrustumPipelineLayout, 0, 1,
+                                     &m_MatrixDescriptorSets[imageIndex], 0, nullptr);
+
+        cmdBuffer.pushConstants(m_FrustumPipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(Frustum),
+                                &frustum);
+
+        cmdBuffer.bindVertexBuffers(0, m_FrustumBuffer.GetVkBuffer(), {0});
+
+        cmdBuffer.bindIndexBuffer(m_FrustumIndexBuffer.GetVkBuffer(), 0, vk::IndexType::eUint32);
+        cmdBuffer.drawIndexed(32, 1, 0, 0, 0);
+    }
+
     {
         m_Renderer.ImGuiNewFrame(m_Window->GetWidth(), m_Window->GetHeight());
 
@@ -593,10 +593,8 @@ void ClassicApplication::DrawFrame()
 
 void ClassicApplication::Loop()
 {
-    if (m_Window == nullptr)
-    {
-        throw std::runtime_error("Failed to run the App! The window is NULL!");
-    }
+
+    ASSERT(m_Window != nullptr, "Failed to run the app! The window is NULL!")
 
     while (!m_Window->ShouldClose())
     {

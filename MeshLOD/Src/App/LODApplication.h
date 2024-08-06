@@ -79,7 +79,7 @@ class LODApplication
 
     LodPC lod_pc;
 
-	glm::uvec2 m_InstanceSize = glm::uvec3(200);
+	glm::uvec2 m_InstanceSize = glm::uvec3(150);
 	const uint32_t m_InstanceCountMax = m_InstanceSize.x * m_InstanceSize.y;
 
 
@@ -101,8 +101,8 @@ class LODApplication
 	bool m_AzimuthSweepEnabled = false;
 	bool m_ZenithSweepEnabled = false;
 	bool m_PossesCamera = true;
-	bool m_EnableCulling = true;
-	int m_InstanceCount = 30000;
+	bool m_EnableCulling = false;
+	int m_InstanceCount = 100;
 	glm::vec3 m_Position;
 
 	uint64_t m_Duration = 0;
