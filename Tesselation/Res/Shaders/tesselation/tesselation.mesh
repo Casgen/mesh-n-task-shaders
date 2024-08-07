@@ -12,9 +12,9 @@ layout(max_vertices=64, max_primitives=126) out;
 
 struct SharedData
 {
-	vec2 vert_coords[MAX_VERTICES];
-	vec2 vert_uvs[MAX_VERTICES];
-	uint triangles[98];
+	vec2 patch_coord;
+	vec2 patch_size;
+	vec4 grid;
 };
 
 struct Frustum {
@@ -63,9 +63,8 @@ vec3 meshlet_colors[MAX_COLORS] = {
 };
 
 
-uvec3 unpackTriangle(const uint triangle) {
-	return uvec3(triangle & 0xFF, (triangle >> 8) & 0xFF, (triangle >> 16) & 0xFF);
-}
+uvec2 verts_per_side = uvec2(uint(sqrt(MAX_VERTICES)));
+uvec2 squares_per_side = uvec2(uint(sqrt(MAX_VERTICES)) - 1);
 
 void main()
 {
@@ -74,23 +73,38 @@ void main()
 
 	SetMeshOutputsEXT(MAX_VERTICES, MAX_TRIANGLES);
 
-	for (uint i = thread_id; i < MAX_VERTICES; i += 32)
-	{
-		vec4 vertex = vec4(payload.vert_coords[i].x,texture(heightMapSampler, payload.vert_uvs[i]).r , payload.vert_coords[i].y, 1.f);
-		// vec4 vertex = vec4(payload.vert_coords[i].x,0.f, payload.vert_coords[i].y, 1.f);
-		
-		vec4 pos = mat_buffer.proj * mat_buffer.view * vertex; 
+	vec2 square_size = payload.patch_size / vec2(squares_per_side.x, squares_per_side.y);
 
-		gl_MeshVerticesEXT[i].gl_Position = pos;
+	// Create the vertices
+	for (uint i = thread_id; i < MAX_VERTICES; i += 32) {
+		
+		uvec2 vertex_id = uvec2(i % verts_per_side.x, i / verts_per_side.y);
+		vec2 vertex_pos = payload.patch_coord + square_size * vertex_id;
+
+		vec2 texture_uv = (vertex_pos - payload.grid.xy) / (payload.grid.zw - payload.grid.xy);
+		vec4 t_pos = mat_buffer.proj * mat_buffer.view * vec4(vertex_pos.x, texture(heightMapSampler, texture_uv).r, vertex_pos.y, 1.f);
+
+		gl_MeshVerticesEXT[i].gl_Position = t_pos;
 
 		o_color[i] = vec4(meshlet_colors[gl_WorkGroupID.x % MAX_COLORS],1.0f);
-		o_position[i] = pos.xyz;
-		o_texCoords[i] = payload.vert_uvs[i];
+		o_position[i] = t_pos.xyz;
+		o_texCoords[i] = texture_uv;
 	}
 
-	for (uint i = gl_LocalInvocationIndex; i < MAX_TRIANGLES; i += 32)
-	{
-		gl_PrimitiveTriangleIndicesEXT[i] = unpackTriangle(payload.triangles[i]); 
+	// Create triangles
+	for (uint i = thread_id; i < MAX_TRIANGLES; i += 32) {
+
+		bool is_even = i % 2 == 0;
+		uint base_vertex = i / 2;
+
+		uint a = base_vertex + uint(base_vertex / squares_per_side.x);
+		uint b = a + 1;
+		uint c = a + 1 + verts_per_side.x;
+		uint d = a + verts_per_side.x;
+
+		uint indices[3] = uint[3](b, c, d); 
+
+		gl_PrimitiveTriangleIndicesEXT[i] = uvec3(a, indices[0 + uint(is_even)], indices[1 + uint(is_even)]);
 	}
 
 

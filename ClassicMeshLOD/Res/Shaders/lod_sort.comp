@@ -81,6 +81,7 @@ void main() {
 
 		while (instance_index < max_offset) {
 			uint info = scratch_buffer.infos[i];
+
 			if (info > 0x7 && (info & 0x7) == gid) {
 				instance_indices.indices[instance_index] = i;
 				instance_index++;
