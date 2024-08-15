@@ -109,7 +109,7 @@ void MeshApplication::InitializeModelPipeline()
     const std::vector<VkCore::ShaderData> shaders =
         VkCore::ShaderLoader::LoadMeshShaders("MeshletCulling/Res/Shaders/mesh_shading");
 
-    m_Model = new Model("MeshletCulling/Res/Artwork/OBJs/kitten.obj");
+    m_Model = new Model("Common/Res/OBJs/kitten.obj");
 
     // Pipeline
     VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice(), true);
@@ -518,15 +518,11 @@ bool MeshApplication::OnMousePress(MouseButtonEvent& event)
 
 bool MeshApplication::OnMouseMoved(MouseMovedEvent& event)
 {
-    if (ImGui::GetIO().WantCaptureMouse)
+    if (ImGui::GetIO().WantCaptureMouse && !m_MouseState.m_IsRMBPressed)
     {
         ImGui_ImplGlfw_CursorPosCallback(m_Window->GetGLFWWindow(), event.GetPos().x, event.GetPos().y);
         return false;
     }
-
-    // LOGF(Application, Info, "Mouse last position X: %d, Y: %d",
-    // m_MouseState.m_LastPosition.x,
-    //      m_MouseState.m_LastPosition.y)
 
     if (m_MouseState.m_IsRMBPressed)
     {
@@ -553,7 +549,7 @@ bool MeshApplication::OnMouseMoved(MouseMovedEvent& event)
 bool MeshApplication::OnMouseRelease(MouseButtonEvent& event)
 {
 
-    if (ImGui::GetIO().WantCaptureMouse)
+    if (ImGui::GetIO().WantCaptureMouse && !m_MouseState.m_IsRMBPressed)
     {
         ImGui_ImplGlfw_MouseButtonCallback(m_Window->GetGLFWWindow(), event.GetKeyCode(), GLFW_RELEASE, 0);
         return true;

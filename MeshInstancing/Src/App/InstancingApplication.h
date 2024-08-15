@@ -28,7 +28,6 @@ class InstancingApplication
 
     void InitializeModelPipeline();
     void InitializeAxisPipeline();
-	void InitializeBoundsPipeline();
 	void InitializeFrustumPipeline();
 	void InitializeInstancing();
 

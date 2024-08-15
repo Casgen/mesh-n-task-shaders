@@ -96,7 +96,7 @@ void ClassicApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 void ClassicApplication::InitializeModelPipeline()
 {
 
-    m_Model = new ClassicLODModel("ClassicMeshLOD/Res/Artwork/OBJs/lucy_lod0.obj");
+    m_Model = new ClassicLODModel("Common/Res/OBJs/lucy_lod0.obj");
 
     const std::vector<VkCore::ShaderData> shaders =
         VkCore::ShaderLoader::LoadClassicShaders("ClassicMeshLOD/Res/Shaders/lod");
@@ -735,10 +735,6 @@ bool ClassicApplication::OnMouseMoved(MouseMovedEvent& event)
         ImGui_ImplGlfw_CursorPosCallback(m_Window->GetGLFWWindow(), event.GetPos().x, event.GetPos().y);
         return false;
     }
-
-    // LOGF(Application, Info, "Mouse last position X: %d, Y: %d",
-    // m_MouseState.m_LastPosition.x,
-    //      m_MouseState.m_LastPosition.y)
 
     if (m_MouseState.m_IsRMBPressed)
     {

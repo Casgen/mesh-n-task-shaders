@@ -110,7 +110,7 @@ void LODApplication::Run(const uint32_t winWidth, const uint32_t winHeight)
 void LODApplication::InitializeModelPipeline()
 {
 
-    m_Model = new LODModel("MeshLOD/Res/Artwork/OBJs/lucy_lod0.obj");
+    m_Model = new LODModel("Common/Res/OBJs/lucy_lod0.obj");
 
     const std::vector<VkCore::ShaderData> shaders =
         VkCore::ShaderLoader::LoadMeshShaders("MeshLOD/Res/Shaders/lod", true, true);

@@ -110,27 +110,15 @@ void TessApplication::InitializeTessPipeline()
 
     VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice(), true);
 
-    vk::PipelineColorBlendAttachmentState blendAttachment;
-
-    blendAttachment.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
-                                     vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
-    blendAttachment.blendEnable = true;
-    blendAttachment.srcColorBlendFactor = vk::BlendFactor::eSrcAlpha;
-    blendAttachment.dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha;
-    blendAttachment.colorBlendOp = vk::BlendOp::eAdd;
-    blendAttachment.srcAlphaBlendFactor = vk::BlendFactor::eOne;
-    blendAttachment.dstAlphaBlendFactor = vk::BlendFactor::eZero;
-    blendAttachment.alphaBlendOp = vk::BlendOp::eAdd;
-
     m_WaterPipeline = pipelineBuilder.BindShaderModules(shaders)
                           .BindRenderPass(m_Renderer.m_RenderPass.GetVkRenderPass())
                           .EnableDepthTest()
                           .AddViewport(glm::uvec4(0, 0, m_Window->GetWidth(), m_Window->GetHeight()))
                           .FrontFaceDirection(vk::FrontFace::eClockwise)
                           .SetCullMode(vk::CullModeFlagBits::eNone)
-                          .AddBlendAttachment(blendAttachment)
                           .AddDescriptorLayout(m_MatrixDescSetLayout)
                           .AddDescriptorLayout(m_MeshNoiseSetLayout)
+                          .AddDisabledBlendAttachment()
                           .AddPushConstantRange<FragmentPC>(vk::ShaderStageFlagBits::eFragment)
                           .AddPushConstantRange<TessPC>(vk::ShaderStageFlagBits::eTaskEXT)
                           .SetPrimitiveAssembly(vk::PrimitiveTopology::eTriangleList)
@@ -159,6 +147,8 @@ void TessApplication::InitializeNoisePipeline()
         .BindImage(1, descNormals, vk::DescriptorType::eStorageImage, vk::ShaderStageFlagBits::eCompute)
         .Build(m_ComputeNoiseSet, m_ComputeNoiseSetLayout);
 
+    m_DescriptorBuilder.Clear();
+
     m_DescriptorBuilder
         .BindImage(0, descHeight, vk::DescriptorType::eCombinedImageSampler,
                    vk::ShaderStageFlagBits::eMeshEXT | vk::ShaderStageFlagBits::eFragment)
@@ -170,6 +160,8 @@ void TessApplication::InitializeNoisePipeline()
                             .AddDescriptorLayout(m_ComputeNoiseSetLayout)
                             .AddPushConstantRange<NoisePC>(vk::ShaderStageFlagBits::eCompute)
                             .Build(m_ComputePipelineLayout);
+
+    m_DescriptorBuilder.Clear();
 }
 
 void TessApplication::InitializeAxisPipeline()
@@ -281,8 +273,8 @@ void TessApplication::DrawFrame()
         commandBuffer.pushConstants(m_WaterPipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, sizeof(FragmentPC),
                                     &fragment_pc);
 
-        commandBuffer.pushConstants(m_WaterPipelineLayout, vk::ShaderStageFlagBits::eTaskEXT, sizeof(FragmentPC), sizeof(TessPC),
-                                    &tess_pc);
+        commandBuffer.pushConstants(m_WaterPipelineLayout, vk::ShaderStageFlagBits::eTaskEXT, sizeof(FragmentPC),
+                                    sizeof(TessPC), &tess_pc);
 
         durationQuery.StartTimestamp(commandBuffer, vk::PipelineStageFlagBits::eTaskShaderEXT);
 
@@ -358,13 +350,12 @@ void TessApplication::DrawFrame()
 
     m_AccDuration += m_Duration = durationQuery.GetResults();
 
-	
     m_Counter++;
-    m_Counter %= 180;
+    m_Counter %= 360;
 
-    if (m_Counter >= 179)
+    if (m_Counter >= 359)
     {
-        m_AvgDuration = m_AccDuration / 179;
+        m_AvgDuration = m_AccDuration / 359;
         m_AccDuration = 0;
     }
 

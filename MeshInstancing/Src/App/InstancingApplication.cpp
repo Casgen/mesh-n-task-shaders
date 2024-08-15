@@ -102,7 +102,6 @@ void InstancingApplication::Run(const uint32_t winWidth, const uint32_t winHeigh
 
     InitializeModelPipeline();
     InitializeAxisPipeline();
-    InitializeBoundsPipeline();
     InitializeFrustumPipeline();
 
     Loop();
@@ -115,7 +114,7 @@ void InstancingApplication::InitializeModelPipeline()
     const std::vector<VkCore::ShaderData> shaders =
         VkCore::ShaderLoader::LoadMeshShaders("MeshInstancing/Res/Shaders/instancing");
 
-    m_Model = new Model("MeshInstancing/Res/Artwork/OBJs/happy_smoothed.obj");
+    m_Model = new Model("Common/Res/OBJs/happysmoothed_lod0.obj");
 
     // Pipeline
     VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice(), true);
@@ -177,36 +176,6 @@ void InstancingApplication::InitializeAxisPipeline()
                          .AddDynamicState(vk::DynamicState::eScissor)
                          .AddDynamicState(vk::DynamicState::eViewport)
                          .Build(m_AxisPipelineLayout);
-}
-
-void InstancingApplication::InitializeBoundsPipeline()
-{
-
-    m_Sphere = SphereModel(Vec3f(0.f, 0.f, 0.f));
-
-    VkCore::VertexAttributeBuilder attributeBuilder;
-
-    attributeBuilder.PushAttribute<float>(3).PushAttribute<float>(3).PushAttribute<float>(3);
-
-    VkCore::GraphicsPipelineBuilder pipelineBuilder(VkCore::DeviceManager::GetDevice());
-
-    std::vector<VkCore::ShaderData> shaderData =
-        VkCore::ShaderLoader::LoadClassicShaders("MeshInstancing/Res/Shaders/bounds");
-
-    m_BoundsPipeline = pipelineBuilder.BindShaderModules(shaderData)
-                           .BindRenderPass(m_Renderer.m_RenderPass.GetVkRenderPass())
-                           .EnableDepthTest()
-                           .AddViewport(glm::uvec4(0, 0, m_Window->GetWidth(), m_Window->GetHeight()))
-                           .FrontFaceDirection(vk::FrontFace::eClockwise)
-                           .SetCullMode(vk::CullModeFlagBits::eNone)
-                           .BindVertexAttributes(attributeBuilder)
-                           .AddDisabledBlendAttachment()
-                           .AddDescriptorLayout(m_MatrixDescSetLayout)
-                           .AddDescriptorLayout(m_Model->GetMeshes()[0].GetDescriptorSetLayout())
-                           .SetPrimitiveAssembly(vk::PrimitiveTopology::eLineList)
-                           .AddDynamicState(vk::DynamicState::eScissor)
-                           .AddDynamicState(vk::DynamicState::eViewport)
-                           .Build(m_BoundsPipelineLayout);
 }
 
 void InstancingApplication::InitializeFrustumPipeline()
@@ -351,23 +320,6 @@ void InstancingApplication::DrawFrame()
 #endif
         }
     }
-
-    // {
-    //     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_BoundsPipeline);
-    //     commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_BoundsPipelineLayout, 0, 1,
-    //                                      &m_MatrixDescriptorSets[imageIndex], 0, nullptr);
-    //
-    //     commandBuffer.bindVertexBuffers(0, m_Sphere.m_Vertexbuffer.GetVkBuffer(), {0});
-    //     commandBuffer.bindIndexBuffer(m_Sphere.m_IndexBuffer.GetVkBuffer(), 0, vk::IndexType::eUint32);
-    //
-    //     for (const Mesh& mesh : m_Model->GetMeshes())
-    //     {
-    //         const vk::DescriptorSet& set = mesh.GetDescriptorSet();
-    //         commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_BoundsPipelineLayout, 1, 1, &set, 0,
-    //                                          nullptr);
-    //         commandBuffer.drawIndexed(m_Sphere.indices.size(), mesh.GetMeshletCount(), 0, 0, 0);
-    //     }
-    // }
 
     {
         commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_AxisPipeline);
@@ -589,15 +541,11 @@ bool InstancingApplication::OnMousePress(MouseButtonEvent& event)
 
 bool InstancingApplication::OnMouseMoved(MouseMovedEvent& event)
 {
-    if (ImGui::GetIO().WantCaptureMouse)
+    if (ImGui::GetIO().WantCaptureMouse && !m_MouseState.m_IsRMBPressed)
     {
         ImGui_ImplGlfw_CursorPosCallback(m_Window->GetGLFWWindow(), event.GetPos().x, event.GetPos().y);
         return false;
     }
-
-    // LOGF(Application, Info, "Mouse last position X: %d, Y: %d",
-    // m_MouseState.m_LastPosition.x,
-    //      m_MouseState.m_LastPosition.y)
 
     if (m_MouseState.m_IsRMBPressed)
     {
@@ -624,7 +572,7 @@ bool InstancingApplication::OnMouseMoved(MouseMovedEvent& event)
 bool InstancingApplication::OnMouseRelease(MouseButtonEvent& event)
 {
 
-    if (ImGui::GetIO().WantCaptureMouse)
+    if (ImGui::GetIO().WantCaptureMouse && !m_MouseState.m_IsRMBPressed)
     {
         ImGui_ImplGlfw_MouseButtonCallback(m_Window->GetGLFWWindow(), event.GetKeyCode(), GLFW_RELEASE, 0);
         return true;
